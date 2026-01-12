@@ -460,7 +460,10 @@
                 fetch(GOOGLE_SHEET_CSV_URL)
                     .then(r => r.ok ? r.text() : Promise.reject())
                     .then(csv => {
-                        const rows = Papa.parse(csv, { header: true, skipEmptyLines: true }).data.map(mapRow).filter(r => r.client?.trim());
+                        // Skip first 2 rows (header decoration rows), then use row 3 as headers
+                        const lines = csv.split('\n');
+                        const csvWithoutDecorationRows = lines.slice(2).join('\n');
+                        const rows = Papa.parse(csvWithoutDecorationRows, { header: true, skipEmptyLines: true }).data.map(mapRow).filter(r => r.client?.trim());
                         setClients(rows.length > 0 ? rows : sample);
                         setLoading(false);
                     })
