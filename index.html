@@ -41,8 +41,7 @@
 
         const URLS = {
             clients: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRimOKUGksj-OVBSCpb9UGnkQU3Wu547GpcaUk4RT0oo5KM0fnVo2sk8mRpy4cwO5j9CckDORzmou-d/pub?gid=133498635&single=true&output=csv',
-            days7: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRimOKUGksj-OVBSCpb9UGnkQU3Wu547GpcaUk4RT0oo5KM0fnVo2sk8mRpy4cwO5j9CckDORzmou-d/pub?gid=1447475730&single=true&output=csv',
-            days30: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRimOKUGksj-OVBSCpb9UGnkQU3Wu547GpcaUk4RT0oo5KM0fnVo2sk8mRpy4cwO5j9CckDORzmou-d/pub?gid=1196243237&single=true&output=csv'
+            setupTiming: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR4LTw-15NE0j25eIOpY_bTPSAipW7-F2eXnL0xtdXMWCZtK9z3MYWxHr6ltnMChLk-YDLzwiXAfvwE/pub?output=csv'
         };
 
         const pn = v => parseFloat(String(v||'0').replace(/[$,%]/g,'').replace(/,/g,''))||0;
@@ -51,6 +50,7 @@
         const fmtN = v => (pn(v)).toLocaleString('en-US',{maximumFractionDigits:0});
         const fmtP = v => (pn(v)).toFixed(1)+'%';
 
+        // Map Media Buying sheet (ALL CLIENTS)
         const mapClient = r => ({
             client: r['Client']||'', adAccount: r['Ad Account Name']||'', state: r['State']||'', 
             campaign: r['CAMPAIGN']||'', callingStatus: r['Calling/Non-calling']||'', startDate: r['Start Date']||'',
@@ -65,6 +65,23 @@
             buyerAppts: pn(r['Buyer Appts']), buyerApptCost: pn(r['Cost per Buyer Appt']),
             deals: pn(r['Potential Deals']), listings: pn(r['Listing']), buyerSigned: pn(r['Buyer Signed']), leadsPerListing: pn(r['Leads/Listing'])
         });
+
+        // Map Setup Timing sheet - need to handle various column name possibilities
+        const mapSetupTiming = r => {
+            // Get the first column which should be client name (might be "VAM", "Active Clients: 62", or actual name)
+            const keys = Object.keys(r);
+            const clientName = r[keys[0]] || '';
+            
+            return {
+                client: clientName,
+                csmRep: r['CSM'] || r['Rep'] || r[keys[1]] || '',
+                status: r['Status'] || r['Lender'] || r[keys[2]] || '',
+                paidDate: r['Paid date'] || r[keys.find(k => k.toLowerCase().includes('paid'))] || '',
+                onboardedDate: r['Onboarded date'] || r[keys.find(k => k.toLowerCase().includes('onboard'))] || '',
+                launchCallDate: r['Launch call date'] || r[keys.find(k => k.toLowerCase().includes('launch'))] || '',
+                adLiveDate: r['Ad Live date'] || r['Ad Live'] || r[keys.find(k => k.toLowerCase().includes('ad live'))] || ''
+            };
+        };
 
         const getHealth = cpl => { if(!cpl) return 'Gray'; if(cpl<=25) return 'Green'; if(cpl<=50) return 'Yellow'; return 'Red'; };
         const getPhase = days => {
@@ -83,6 +100,7 @@
 
         const tabs = [
             { id: 'overview', name: 'Overview', icon: '📊' },
+            { id: 'info', name: 'Client Information', icon: '👤' },
             { id: 'performance', name: 'Performance', icon: '📈' },
             { id: 'strategy', name: 'Strategy & Notes', icon: '📝' },
         ];
@@ -95,7 +113,7 @@
         };
 
         // ========== OVERVIEW TAB ==========
-        const OverviewTab = ({c}) => {
+        const OverviewTab = ({c, setupInfo}) => {
             const [checks, setChecks] = useState({});
             if(!c) return <div className="card rounded-xl p-12 text-center text-gray-500">Select a client to view details</div>;
             const phase = getPhase(c.days);
@@ -105,6 +123,7 @@
                         <Badge health={getHealth(c.cpl)}/>
                         <PhaseBadge days={c.days}/>
                         <span className="text-gray-500">{c.campaign} • {c.callingStatus}</span>
+                        {setupInfo?.csmRep && <span className="px-2 py-0.5 bg-accent-purple/20 text-accent-purple rounded-full text-xs">CSM: {setupInfo.csmRep}</span>}
                     </div>
                     <div className="card rounded-xl p-6">
                         <div className="flex justify-between items-center mb-4">
@@ -133,6 +152,175 @@
                                     <span className={checks[`${phase.n}-${i}`]?'text-gray-500 line-through':'text-gray-300'}>{item}</span>
                                 </label>
                             ))}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // ========== CLIENT INFORMATION TAB ==========
+        const ClientInfoTab = ({c, setupInfo}) => {
+            if(!c) return <div className="card rounded-xl p-12 text-center text-gray-500">Select a client to view details</div>;
+            
+            const formatDate = (d) => {
+                if(!d) return '—';
+                return d;
+            };
+
+            const getDaysSince = (dateStr) => {
+                if(!dateStr) return null;
+                try {
+                    const date = new Date(dateStr);
+                    const today = new Date();
+                    const diff = Math.floor((today - date) / (1000 * 60 * 60 * 24));
+                    return diff >= 0 ? diff : null;
+                } catch { return null; }
+            };
+
+            return (
+                <div className="space-y-6">
+                    <h2 className="text-xl font-bold gradient-text">Client Information</h2>
+                    
+                    {/* Basic Info */}
+                    <div className="card rounded-xl p-6">
+                        <h3 className="text-lg font-semibold text-white mb-4">👤 Basic Details</h3>
+                        <div className="grid md:grid-cols-2 gap-6">
+                            <div className="space-y-4">
+                                <div className="flex justify-between p-3 bg-dark-800 rounded-lg">
+                                    <span className="text-gray-400">Client Name</span>
+                                    <span className="text-white font-semibold">{c.client}</span>
+                                </div>
+                                <div className="flex justify-between p-3 bg-dark-800 rounded-lg">
+                                    <span className="text-gray-400">State</span>
+                                    <span className="text-white">{c.state || '—'}</span>
+                                </div>
+                                <div className="flex justify-between p-3 bg-dark-800 rounded-lg">
+                                    <span className="text-gray-400">Ad Account</span>
+                                    <span className="text-white">{c.adAccount || '—'}</span>
+                                </div>
+                                <div className="flex justify-between p-3 bg-dark-800 rounded-lg">
+                                    <span className="text-gray-400">Campaign Type</span>
+                                    <span className="text-white">{c.campaign || '—'}</span>
+                                </div>
+                            </div>
+                            <div className="space-y-4">
+                                <div className="flex justify-between p-3 bg-dark-800 rounded-lg">
+                                    <span className="text-gray-400">Calling Status</span>
+                                    <span className={`font-semibold ${c.callingStatus?.toLowerCase().includes('calling') ? 'text-accent-green' : 'text-gray-400'}`}>{c.callingStatus || '—'}</span>
+                                </div>
+                                <div className="flex justify-between p-3 bg-dark-800 rounded-lg">
+                                    <span className="text-gray-400">CSM Rep</span>
+                                    <span className="text-accent-purple font-semibold">{setupInfo?.csmRep || '—'}</span>
+                                </div>
+                                <div className="flex justify-between p-3 bg-dark-800 rounded-lg">
+                                    <span className="text-gray-400">Lender Status</span>
+                                    <span className={`font-semibold ${setupInfo?.status?.toLowerCase() === 'none' ? 'text-gray-400' : 'text-accent-green'}`}>{setupInfo?.status || '—'}</span>
+                                </div>
+                                <div className="flex justify-between p-3 bg-dark-800 rounded-lg">
+                                    <span className="text-gray-400">Days Running</span>
+                                    <span className="text-accent-cyan font-semibold">{c.days} days</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Timeline */}
+                    <div className="card rounded-xl p-6">
+                        <h3 className="text-lg font-semibold text-white mb-4">📅 Key Dates & Timeline</h3>
+                        <div className="grid md:grid-cols-4 gap-4">
+                            <div className="bg-dark-800 rounded-xl p-4 text-center">
+                                <div className="text-3xl mb-2">💰</div>
+                                <div className="text-lg font-bold text-white">{formatDate(setupInfo?.paidDate)}</div>
+                                <div className="text-sm text-gray-500">Paid Date</div>
+                                {getDaysSince(setupInfo?.paidDate) !== null && (
+                                    <div className="text-xs text-accent-cyan mt-1">{getDaysSince(setupInfo?.paidDate)} days ago</div>
+                                )}
+                            </div>
+                            <div className="bg-dark-800 rounded-xl p-4 text-center">
+                                <div className="text-3xl mb-2">🚀</div>
+                                <div className="text-lg font-bold text-white">{formatDate(setupInfo?.onboardedDate)}</div>
+                                <div className="text-sm text-gray-500">Onboarded</div>
+                                {getDaysSince(setupInfo?.onboardedDate) !== null && (
+                                    <div className="text-xs text-accent-purple mt-1">{getDaysSince(setupInfo?.onboardedDate)} days ago</div>
+                                )}
+                            </div>
+                            <div className="bg-dark-800 rounded-xl p-4 text-center">
+                                <div className="text-3xl mb-2">📞</div>
+                                <div className="text-lg font-bold text-white">{formatDate(setupInfo?.launchCallDate)}</div>
+                                <div className="text-sm text-gray-500">Launch Call</div>
+                                {getDaysSince(setupInfo?.launchCallDate) !== null && (
+                                    <div className="text-xs text-accent-green mt-1">{getDaysSince(setupInfo?.launchCallDate)} days ago</div>
+                                )}
+                            </div>
+                            <div className="bg-dark-800 rounded-xl p-4 text-center">
+                                <div className="text-3xl mb-2">📢</div>
+                                <div className="text-lg font-bold text-white">{formatDate(setupInfo?.adLiveDate)}</div>
+                                <div className="text-sm text-gray-500">Ads Live</div>
+                                {getDaysSince(setupInfo?.adLiveDate) !== null && (
+                                    <div className="text-xs text-accent-yellow mt-1">{getDaysSince(setupInfo?.adLiveDate)} days ago</div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Progress Timeline Visual */}
+                    <div className="card rounded-xl p-6">
+                        <h3 className="text-lg font-semibold text-white mb-4">⏱️ Onboarding Progress</h3>
+                        <div className="flex items-center justify-between">
+                            <div className="flex flex-col items-center">
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${setupInfo?.paidDate ? 'bg-accent-green' : 'bg-dark-600'}`}>
+                                    {setupInfo?.paidDate ? '✓' : '1'}
+                                </div>
+                                <span className="text-xs text-gray-500 mt-2">Paid</span>
+                            </div>
+                            <div className={`flex-1 h-1 mx-2 ${setupInfo?.onboardedDate ? 'bg-accent-green' : 'bg-dark-600'}`}/>
+                            <div className="flex flex-col items-center">
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${setupInfo?.onboardedDate ? 'bg-accent-green' : 'bg-dark-600'}`}>
+                                    {setupInfo?.onboardedDate ? '✓' : '2'}
+                                </div>
+                                <span className="text-xs text-gray-500 mt-2">Onboarded</span>
+                            </div>
+                            <div className={`flex-1 h-1 mx-2 ${setupInfo?.launchCallDate ? 'bg-accent-green' : 'bg-dark-600'}`}/>
+                            <div className="flex flex-col items-center">
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${setupInfo?.launchCallDate ? 'bg-accent-green' : 'bg-dark-600'}`}>
+                                    {setupInfo?.launchCallDate ? '✓' : '3'}
+                                </div>
+                                <span className="text-xs text-gray-500 mt-2">Launch Call</span>
+                            </div>
+                            <div className={`flex-1 h-1 mx-2 ${setupInfo?.adLiveDate ? 'bg-accent-green' : 'bg-dark-600'}`}/>
+                            <div className="flex flex-col items-center">
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${setupInfo?.adLiveDate ? 'bg-accent-green' : 'bg-dark-600'}`}>
+                                    {setupInfo?.adLiveDate ? '✓' : '4'}
+                                </div>
+                                <span className="text-xs text-gray-500 mt-2">Ads Live</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Quick Stats from Media Buying */}
+                    <div className="card rounded-xl p-6">
+                        <h3 className="text-lg font-semibold text-white mb-4">📊 Current Performance Snapshot</h3>
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                            <div className="text-center p-3 bg-dark-800 rounded-lg">
+                                <div className="text-xl font-bold text-white">{fmt(c.spend)}</div>
+                                <div className="text-xs text-gray-500">Total Spend</div>
+                            </div>
+                            <div className="text-center p-3 bg-dark-800 rounded-lg">
+                                <div className="text-xl font-bold text-accent-cyan">{fmtN(c.leads)}</div>
+                                <div className="text-xs text-gray-500">Leads</div>
+                            </div>
+                            <div className="text-center p-3 bg-dark-800 rounded-lg">
+                                <div className="text-xl font-bold text-white">{fmtD(c.cpl)}</div>
+                                <div className="text-xs text-gray-500">CPL</div>
+                            </div>
+                            <div className="text-center p-3 bg-dark-800 rounded-lg">
+                                <div className="text-xl font-bold text-accent-purple">{fmtN(c.appts)}</div>
+                                <div className="text-xs text-gray-500">Appts</div>
+                            </div>
+                            <div className="text-center p-3 bg-dark-800 rounded-lg">
+                                <div className="text-xl font-bold text-accent-green">{fmtN(c.deals)}</div>
+                                <div className="text-xs text-gray-500">Deals</div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -221,7 +409,7 @@
             );
         };
 
-        // ========== STRATEGY & NOTES TAB (Combined) ==========
+        // ========== STRATEGY & NOTES TAB ==========
         const StrategyTab = ({c}) => {
             const [notes, setNotes] = useState([]);
             const [newNote, setNewNote] = useState('');
@@ -237,53 +425,30 @@
 
             return (
                 <div className="space-y-6">
-                    {/* Strategy Section */}
                     <div>
                         <h2 className="text-xl font-bold text-white mb-4">🧠 Strategy</h2>
                         <div className="card rounded-xl p-6">
                             <h4 className="font-semibold text-white mb-3">Current Strategy</h4>
-                            <textarea 
-                                value={strategy} 
-                                onChange={e=>setStrategy(e.target.value)}
-                                className="w-full bg-dark-800 border border-dark-500 rounded-lg p-4 text-white min-h-[120px] focus:outline-none focus:border-accent-cyan" 
-                                placeholder="Document the current strategy for this client..."
-                            />
+                            <textarea value={strategy} onChange={e=>setStrategy(e.target.value)} className="w-full bg-dark-800 border border-dark-500 rounded-lg p-4 text-white min-h-[120px] focus:outline-none focus:border-accent-cyan" placeholder="Document the current strategy..."/>
                         </div>
                         <div className="card rounded-xl p-6 mt-4">
                             <h4 className="font-semibold text-white mb-3">Action Items</h4>
-                            <textarea 
-                                value={actions}
-                                onChange={e=>setActions(e.target.value)}
-                                className="w-full bg-dark-800 border border-dark-500 rounded-lg p-4 text-white min-h-[120px] focus:outline-none focus:border-accent-cyan" 
-                                placeholder="List action items and next steps..."
-                            />
+                            <textarea value={actions} onChange={e=>setActions(e.target.value)} className="w-full bg-dark-800 border border-dark-500 rounded-lg p-4 text-white min-h-[120px] focus:outline-none focus:border-accent-cyan" placeholder="List action items..."/>
                         </div>
                     </div>
-
-                    {/* Notes Section */}
                     <div>
                         <h2 className="text-xl font-bold text-white mb-4">📝 Notes Log</h2>
                         <div className="card rounded-xl p-6">
                             <div className="flex gap-4">
-                                <input 
-                                    type="text" 
-                                    value={newNote} 
-                                    onChange={e=>setNewNote(e.target.value)} 
-                                    onKeyPress={e=>e.key==='Enter'&&addNote()}
-                                    className="flex-1 bg-dark-800 border border-dark-500 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-accent-cyan" 
-                                    placeholder="Add a note..."
-                                />
+                                <input type="text" value={newNote} onChange={e=>setNewNote(e.target.value)} onKeyPress={e=>e.key==='Enter'&&addNote()} className="flex-1 bg-dark-800 border border-dark-500 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-accent-cyan" placeholder="Add a note..."/>
                                 <button onClick={addNote} className="px-6 py-3 bg-accent-cyan text-dark-900 font-semibold rounded-lg hover:bg-cyan-400">Add</button>
                             </div>
                         </div>
                         <div className="space-y-3 mt-4">
-                            {notes.length===0 && <div className="card rounded-xl p-8 text-center text-gray-500">No notes yet. Add your first note above.</div>}
+                            {notes.length===0 && <div className="card rounded-xl p-8 text-center text-gray-500">No notes yet.</div>}
                             {notes.map((n,i) => (
                                 <div key={i} className="card rounded-xl p-4">
-                                    <div className="flex gap-4 text-sm mb-2">
-                                        <span className="font-mono text-gray-500">{n.time}</span>
-                                        <span className="text-accent-purple">{n.client}</span>
-                                    </div>
+                                    <div className="flex gap-4 text-sm mb-2"><span className="font-mono text-gray-500">{n.time}</span><span className="text-accent-purple">{n.client}</span></div>
                                     <div className="text-gray-300">{n.text}</div>
                                 </div>
                             ))}
@@ -294,7 +459,7 @@
         };
 
         // ========== AI CHAT ==========
-        const AIChat = ({open, onClose, client}) => {
+        const AIChat = ({open, onClose, client, setupInfo}) => {
             const [msgs, setMsgs] = useState([]);
             const [input, setInput] = useState('');
             const [loading, setLoading] = useState(false);
@@ -311,21 +476,17 @@
                     if(client) {
                         const c = client;
                         if(q.includes('summary')||q.includes('overview')) {
-                            res = `📊 ${c.client} Summary:\n• Day ${c.days} (Phase ${getPhase(c.days).n})\n• Spend: ${fmt(c.spend)}\n• Leads: ${fmtN(c.leads)} (${fmtD(c.cpl)} CPL)\n• Appts: ${fmtN(c.appts)}\n• Deals: ${fmtN(c.deals)}\n• Listings: ${fmtN(c.listings)}`;
-                        } else if(q.includes('improve')||q.includes('optimize')||q.includes('recommend')) {
+                            res = `📊 ${c.client} Summary:\n• Day ${c.days} (Phase ${getPhase(c.days).n})\n• CSM: ${setupInfo?.csmRep || 'N/A'}\n• Spend: ${fmt(c.spend)}\n• Leads: ${fmtN(c.leads)} (${fmtD(c.cpl)} CPL)\n• Appts: ${fmtN(c.appts)}\n• Deals: ${fmtN(c.deals)}`;
+                        } else if(q.includes('timeline')||q.includes('dates')||q.includes('onboard')) {
+                            res = `📅 ${c.client} Timeline:\n• Paid: ${setupInfo?.paidDate || 'N/A'}\n• Onboarded: ${setupInfo?.onboardedDate || 'N/A'}\n• Launch Call: ${setupInfo?.launchCallDate || 'N/A'}\n• Ads Live: ${setupInfo?.adLiveDate || 'N/A'}`;
+                        } else if(q.includes('improve')||q.includes('optimize')) {
                             const h = getHealth(c.cpl);
-                            res = h==='Red' ? `⚠️ CPL is high at ${fmtD(c.cpl)}. Recommendations:\n• Review ad targeting\n• Test new creatives\n• Check landing page\n• Adjust budget allocation` 
-                                : h==='Yellow' ? `📈 CPL at ${fmtD(c.cpl)} - room to improve:\n• A/B test headlines\n• Refine audience\n• Optimize ad schedule\n• Review follow-up speed`
-                                : `✅ Great CPL at ${fmtD(c.cpl)}!\n• Consider scaling budget\n• Expand to new audiences\n• Document what's working\n• Test similar campaigns`;
-                        } else if(q.includes('appt')||q.includes('appointment')) {
-                            res = `📅 Appointment Analysis:\n• Total: ${fmtN(c.appts)}\n• Last 7 Days: ${fmtN(c.appts7)}\n• Per Week: ${c.apptsWeek.toFixed(1)}\n• Lead→Appt: ${fmtP(c.sellerLeadToAppt)}\n• Cost/Appt: ${fmtD(c.sellerApptCost)}`;
-                        } else if(q.includes('deal')||q.includes('close')||q.includes('listing')) {
-                            res = `🏠 Deal Pipeline:\n• Potential Deals: ${fmtN(c.deals)}\n• Listings: ${fmtN(c.listings)}\n• Buyer Signed: ${fmtN(c.buyerSigned)}\n• Leads/Listing: ${c.leadsPerListing.toFixed(0)}`;
+                            res = h==='Red' ? `⚠️ CPL is high at ${fmtD(c.cpl)}:\n• Review targeting\n• Test new creatives\n• Check landing page` : h==='Yellow' ? `📈 CPL at ${fmtD(c.cpl)} - can improve:\n• A/B test headlines\n• Refine audience` : `✅ Great CPL at ${fmtD(c.cpl)}!\n• Consider scaling\n• Document what works`;
                         } else {
-                            res = `Ask me about ${c.client}:\n• "Give me a summary"\n• "How can we improve?"\n• "Appointment analysis"\n• "Deal pipeline"`;
+                            res = `Ask about ${c.client}:\n• "Summary"\n• "Timeline/dates"\n• "How to improve?"`;
                         }
                     } else {
-                        res = 'Select a client first, then ask me about their performance!';
+                        res = 'Select a client first!';
                     }
                     setMsgs(p=>[...p, {role:'assistant', content:res}]);
                     setLoading(false);
@@ -336,14 +497,14 @@
             return (
                 <div className="fixed inset-y-0 right-0 w-96 bg-dark-800 border-l border-dark-600 z-50 flex flex-col slide-in">
                     <div className="p-4 border-b border-dark-600 flex justify-between">
-                        <div><h3 className="font-bold text-white">AI Assistant</h3><p className="text-xs text-gray-500">{client?.client||'No client selected'}</p></div>
+                        <div><h3 className="font-bold text-white">AI Assistant</h3><p className="text-xs text-gray-500">{client?.client||'No client'}</p></div>
                         <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl">&times;</button>
                     </div>
                     <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar">
                         {msgs.length===0 && (
                             <div className="text-center py-8 text-gray-500">
                                 <div className="text-4xl mb-3">🤖</div>
-                                {['Give me a summary','How can we improve?','Appointment analysis'].map((s,i)=>(
+                                {['Summary','Timeline/dates','How to improve?'].map((s,i)=>(
                                     <button key={i} onClick={()=>setInput(s)} className="block w-full text-left px-3 py-2 mb-2 bg-dark-700 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-dark-600">{s}</button>
                                 ))}
                             </div>
@@ -362,29 +523,66 @@
         // ========== MAIN APP ==========
         const App = () => {
             const [clients, setClients] = useState([]);
+            const [setupData, setSetupData] = useState([]);
             const [selected, setSelected] = useState(null);
             const [tab, setTab] = useState('overview');
             const [aiOpen, setAiOpen] = useState(false);
             const [loading, setLoading] = useState(true);
 
             useEffect(() => {
-                fetch(URLS.clients)
-                    .then(r=>r.text())
-                    .then(csv=>{
-                        const lines = csv.split('\n');
-                        const data = Papa.parse(lines.slice(2).join('\n'), {header:true, skipEmptyLines:true}).data.map(mapClient).filter(r=>r.client);
-                        setClients(data);
-                        setLoading(false);
-                    })
-                    .catch(()=>setLoading(false));
+                Promise.all([
+                    // Fetch Media Buying data (skip 2 header rows)
+                    fetch(URLS.clients)
+                        .then(r=>r.text())
+                        .then(csv=>{
+                            const lines = csv.split('\n');
+                            return Papa.parse(lines.slice(2).join('\n'), {header:true, skipEmptyLines:true}).data.map(mapClient).filter(r=>r.client);
+                        })
+                        .catch(()=>[]),
+                    
+                    // Fetch Setup Timing data (skip 2 header rows based on screenshot)
+                    fetch(URLS.setupTiming)
+                        .then(r=>r.text())
+                        .then(csv=>{
+                            const lines = csv.split('\n');
+                            // Skip header rows (VAM, Active Clients row)
+                            const dataLines = lines.slice(2).join('\n');
+                            return Papa.parse(dataLines, {header:true, skipEmptyLines:true}).data.map(mapSetupTiming).filter(r=>r.client && !r.client.includes('VAM') && !r.client.includes('Active'));
+                        })
+                        .catch(()=>[])
+                ])
+                .then(([clientsData, setupTimingData]) => {
+                    setClients(clientsData);
+                    setSetupData(setupTimingData);
+                    setLoading(false);
+                });
             }, []);
+
+            // Find matching setup info for selected client
+            const getSetupInfo = (client) => {
+                if(!client) return null;
+                // Try to match by client name (fuzzy match)
+                const clientName = client.client.toLowerCase();
+                return setupData.find(s => {
+                    const setupName = s.client.toLowerCase();
+                    // Check if names match or contain each other
+                    return setupName === clientName || 
+                           setupName.includes(clientName) || 
+                           clientName.includes(setupName) ||
+                           // Match first/last name
+                           clientName.split(' ').some(part => setupName.includes(part) && part.length > 2);
+                });
+            };
+
+            const selectedSetupInfo = getSetupInfo(selected);
 
             const renderTab = () => {
                 switch(tab) {
-                    case 'overview': return <OverviewTab c={selected}/>;
+                    case 'overview': return <OverviewTab c={selected} setupInfo={selectedSetupInfo}/>;
+                    case 'info': return <ClientInfoTab c={selected} setupInfo={selectedSetupInfo}/>;
                     case 'performance': return <PerformanceTab c={selected}/>;
                     case 'strategy': return <StrategyTab c={selected}/>;
-                    default: return <OverviewTab c={selected}/>;
+                    default: return <OverviewTab c={selected} setupInfo={selectedSetupInfo}/>;
                 }
             };
 
@@ -392,29 +590,20 @@
 
             return (
                 <div className="flex min-h-screen">
-                    {/* Sidebar */}
                     <aside className="w-64 bg-dark-800 border-r border-dark-600 flex flex-col">
                         <div className="p-5 border-b border-dark-600">
                             <h1 className="text-xl font-bold gradient-text">VAM Client Hub</h1>
                             <p className="text-xs text-gray-500 mt-1">Success Manager</p>
                         </div>
                         <div className="p-4">
-                            <select 
-                                value={selected?.client||''} 
-                                onChange={e=>setSelected(clients.find(c=>c.client===e.target.value))}
-                                className="w-full bg-dark-700 border border-dark-500 rounded-lg px-4 py-3 text-white appearance-none cursor-pointer hover:border-accent-cyan/50 focus:outline-none focus:border-accent-cyan"
-                            >
+                            <select value={selected?.client||''} onChange={e=>setSelected(clients.find(c=>c.client===e.target.value))} className="w-full bg-dark-700 border border-dark-500 rounded-lg px-4 py-3 text-white appearance-none cursor-pointer hover:border-accent-cyan/50 focus:outline-none focus:border-accent-cyan">
                                 <option value="">Select a client...</option>
                                 {clients.map(c=><option key={c.client} value={c.client}>{c.client}</option>)}
                             </select>
                         </div>
                         <nav className="flex-1 py-2">
                             {tabs.map(t=>(
-                                <button 
-                                    key={t.id} 
-                                    onClick={()=>setTab(t.id)} 
-                                    className={`w-full flex items-center gap-3 px-5 py-3 text-left transition-all ${tab===t.id?'tab-active text-white':'text-gray-400 hover:text-white hover:bg-dark-700'}`}
-                                >
+                                <button key={t.id} onClick={()=>setTab(t.id)} className={`w-full flex items-center gap-3 px-5 py-3 text-left transition-all ${tab===t.id?'tab-active text-white':'text-gray-400 hover:text-white hover:bg-dark-700'}`}>
                                     <span>{t.icon}</span>
                                     <span className="text-sm font-medium">{t.name}</span>
                                 </button>
@@ -425,7 +614,6 @@
                         </div>
                     </aside>
 
-                    {/* Main Content */}
                     <main className="flex-1 flex flex-col">
                         <header className="bg-dark-800/50 backdrop-blur border-b border-dark-600 px-8 py-4 flex justify-between items-center">
                             <div>
@@ -434,6 +622,7 @@
                                         <h2 className="text-xl font-bold text-white">{selected.client}</h2>
                                         <Badge health={getHealth(selected.cpl)}/>
                                         <span className="text-gray-500">Day {selected.days}</span>
+                                        {selectedSetupInfo?.csmRep && <span className="text-accent-purple text-sm">CSM: {selectedSetupInfo.csmRep}</span>}
                                     </div>
                                 ) : <h2 className="text-xl text-gray-500">Select a client</h2>}
                             </div>
@@ -442,7 +631,7 @@
                         <div className="flex-1 overflow-y-auto p-8 scrollbar">{renderTab()}</div>
                     </main>
 
-                    <AIChat open={aiOpen} onClose={()=>setAiOpen(false)} client={selected}/>
+                    <AIChat open={aiOpen} onClose={()=>setAiOpen(false)} client={selected} setupInfo={selectedSetupInfo}/>
                     {!aiOpen && <button onClick={()=>setAiOpen(true)} className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-accent-cyan to-accent-purple rounded-full flex items-center justify-center text-2xl shadow-lg hover:scale-110 transition-transform z-40">🤖</button>}
                 </div>
             );
