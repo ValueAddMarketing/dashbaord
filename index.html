@@ -50,7 +50,7 @@
         const fmtD = v => '$'+(pn(v)).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
         const fmtN = v => (pn(v)).toLocaleString('en-US',{maximumFractionDigits:0});
         const fmtP = v => (pn(v)).toFixed(1)+'%';
-        const clean = v => v || '—';
+        const clean = v => (v && v.toString().trim()) ? v.toString().trim() : '—';
 
         // Map Media Buying sheet
         const mapClient = r => ({
@@ -68,130 +68,100 @@
             deals: pn(r['Potential Deals']), listings: pn(r['Listing']), buyerSigned: pn(r['Buyer Signed']), leadsPerListing: pn(r['Leads/Listing'])
         });
 
-        // Map ALL Setup Timing columns
-        const mapSetupTiming = r => {
-            const keys = Object.keys(r);
-            const get = (name) => {
-                const key = keys.find(k => k.toLowerCase().trim() === name.toLowerCase().trim());
-                return key ? r[key] : '';
-            };
-            const getAny = (...names) => {
-                for(const name of names) {
-                    const val = get(name);
-                    if(val) return val;
-                }
-                return '';
-            };
-            
+        // Map Setup Timing by column INDEX (based on Row 1 headers)
+        // Column positions: A=0, B=1, C=2, etc.
+        const mapSetupTimingByIndex = (values) => {
+            const get = (idx) => values[idx] || '';
             return {
-                // Client name (first column)
-                client: r[keys[0]] || '',
-                
-                // CSM Section
-                csmRep: getAny('CSM', 'Rep'),
-                lastForm: get('Last Form'),
-                lastFormDate: get('Date'),
-                
-                // Status Section
-                status: getAny('Status'),
-                concern: get('Concern'),
-                referral: get('Referral'),
-                testimonial: getAny('Testmonial', 'Testimonial'),
-                
-                // Info Section
-                state: get('State'),
-                campaign: get('Campaign'),
-                contractCategory: get('Contract Category'),
-                spanish: get('Spanish'),
-                mrr: get('MRR'),
-                fulfilled: getAny('Fullfilled', 'Fulfilled'),
-                info: get('Info'),
-                daysLeft: get('Days left'),
-                duePayment: get('Due Payment'),
-                
-                // CSM Notes
-                lastCsmNote: get('Last CSM Rep - Note - date'),
-                upcomingCsmDate: get('upcoming CSM rep - date'),
-                
-                // Dates Section
-                paidDate: get('Paid date'),
-                onboardedDate: get('Onboarded date'),
-                launchCallDate: get('Launch call date'),
-                adLiveDate: get('Ad Live date'),
-                billingCycle: get('Billing cycle'),
-                freeTrialDays: get('Free trial Days'),
-                adsOnPauseDays: get('ADs on pause total days'),
-                
-                // Performance Section
-                closings: get('Closings'),
-                signed: get('Signed'),
-                appts: get('Appts'),
-                behindSchedule: get('Behind schedule'),
-                missing: get('Missing'),
-                shuPercent: get('SHU%'),
-                
-                // Calling Section
-                calling: get('Calling'),
-                dialer: get('Dialer'),
-                sLeads: get('S Leads'),
-                bLeads: get('B Leads'),
-                cpl: get('CPL'),
-                cpa: get('CPA'),
-                sAppts: get('(S)appts'),
-                bAppts: get('(B)appts'),
-                shu: get('SHU'),
-                ns: get('NS'),
-                
-                // Onboarding Section
-                stageOnCrm: get('Stage on CRM'),
-                timezone: get('Timezone'),
-                onboardingRep: getAny('Rep'),
-                redFlags: get('Red flags'),
-                crmFees: get('CRM Fees'),
-                adSpendFees: get('ad spend fees'),
-                responsiveness: getAny('Responsivness', 'Responsiveness'),
-                leadGenExp: get('Lead gen exp'),
-                callingExpectations: get('Calling expectaions'),
-                fathom1: get('Fathom'),
-                
-                // Ads Section
-                adsOnPauseDaysDetail: get('ads on pause days'),
-                adAccountName: get('Ad Account name'),
-                adSpend: get('Ad Spend'),
-                radius: get('radius'),
-                city: get('City'),
-                target: get('Target'),
-                launch: get('Launch'),
-                adsRep: getAny('Rep'),
-                readiness: get('Readiness'),
-                
-                // Client Profile
-                personality: get('Personality'),
-                expectations: get('Expectations'),
-                unresolvedConcerns: get('Unresolved Concerns'),
-                
-                // Check-ins
-                firstCheckin: get('1st Check-in'),
-                firstCsm: get('1st CSM'),
-                fathom2: get('Fathom'),
-                
-                // Billing Section
-                revenueContracted: get('Revenue Contracted'),
-                contractLength: get('Contract length'),
-                moPaymentsCollected: get('mo payments collected'),
-                billingAdjust: get('Billing adjust'),
-                platform: get('Platform'),
-                nameEmail: get('Name/email'),
-                contractNotes: get('contract notes'),
-                paymentNotes: get('Payment notes'),
-                amountCollected: get('Amount collected'),
-                
-                // B2B/Sales Section
-                b2b: get('B2B'),
-                closedOn: get('Closed on'),
-                fathom3: get('Fathom'),
-                commission: getAny('commision', 'commission'),
-                setterCloser: get('Setter & Closer')
+                client: get(0),           // A: Client name (under VAM header)
+                csmRep: get(1),           // B: CSM
+                lastForm: get(2),         // C: Last Form
+                lastFormDate: get(3),     // D: Date
+                status: get(4),           // E: Status
+                concern: get(5),          // F: Concern
+                referral: get(6),         // G: Referral
+                testimonial: get(7),      // H: Testimonial
+                lender: get(8),           // I: Status (Lender)
+                state: get(9),            // J: State
+                campaign: get(10),        // K: Campaign
+                contractCategory: get(11),// L: Contract Category
+                spanish: get(12),         // M: Spanish
+                mrr: get(13),             // N: MRR
+                fulfilled: get(14),       // O: Fulfilled
+                info: get(15),            // P: Info
+                daysLeft: get(16),        // Q: Days left
+                duePayment: get(17),      // R: Due Payment
+                lastCsmNote: get(18),     // S: Last CSM Rep - Note - date
+                upcomingCsmDate: get(19), // T: upcoming CSM rep - date
+                // U: Dates (section header)
+                paidDate: get(20),        // V: Paid date
+                onboardedDate: get(21),   // W: Onboarded date
+                launchCallDate: get(22),  // X: Launch call date
+                adLiveDate: get(23),      // Y: Ad Live date
+                billingCycle: get(24),    // Z: Billing cycle
+                freeTrialDays: get(25),   // AA: Free trial Days
+                adsOnPauseDays: get(26),  // AB: ADs on pause total days
+                // AC: Performance (section header)
+                closings: get(27),        // AD: Closings
+                signed: get(28),          // AE: Signed
+                appts: get(29),           // AF: Appts
+                behindSchedule: get(30),  // AG: Behind schedule
+                missing: get(31),         // AH: Missing
+                shuPercent: get(32),      // AI: SHU%
+                // AJ: Calling (section header)
+                calling: get(33),         // AK: Calling (or could be Dialer)
+                dialer: get(34),          // AL: Dialer
+                sLeads: get(35),          // AM: S Leads
+                bLeads: get(36),          // AN: B Leads
+                cpl: get(37),             // AO: CPL
+                cpa: get(38),             // AP: CPA
+                sAppts: get(39),          // AQ: (S)appts
+                bAppts: get(40),          // AR: (B)appts
+                shu: get(41),             // AS: SHU
+                ns: get(42),              // AT: NS
+                // AU: Onboarding (section header)
+                stageOnCrm: get(43),      // AV: Stage on CRM
+                timezone: get(44),        // AW: Timezone
+                onboardingRep: get(45),   // AX: Rep
+                redFlags: get(46),        // AY: Red flags
+                crmFees: get(47),         // AZ: CRM Fees
+                adSpendFees: get(48),     // BA: ad spend fees
+                responsiveness: get(49),  // BB: Responsiveness
+                leadGenExp: get(50),      // BC: Lead gen exp
+                callingExpectations: get(51), // BD: Calling expectations
+                fathom1: get(52),         // BE: Fathom
+                // BF: Ads (section header)
+                adsOnPauseDaysDetail: get(53), // BG: ads on pause days
+                adAccountName: get(54),   // BH: Ad Account name
+                adSpend: get(55),         // BI: Ad Spend
+                radius: get(56),          // BJ: radius
+                city: get(57),            // BK: City
+                target: get(58),          // BL: Target
+                launch: get(59),          // BM: Launch
+                adsRep: get(60),          // BN: Rep
+                readiness: get(61),       // BO: Readiness
+                personality: get(62),     // BP: Personality
+                expectations: get(63),    // BQ: Expectations
+                unresolvedConcerns: get(64), // BR: Unresolved Concerns
+                firstCheckin: get(65),    // BS: 1st Check-in
+                firstCsm: get(66),        // BT: 1st CSM
+                fathom2: get(67),         // BU: Fathom
+                // BV: Billing (section header)
+                revenueContracted: get(68), // BW: Revenue Contracted
+                contractLength: get(69),  // BX: Contract length
+                moPaymentsCollected: get(70), // BY: mo payments collected
+                billingAdjust: get(71),   // BZ: Billing adjust
+                platform: get(72),        // CA: Platform
+                nameEmail: get(73),       // CB: Name/email
+                contractNotes: get(74),   // CC: contract notes
+                paymentNotes: get(75),    // CD: Payment notes
+                amountCollected: get(76), // CE: Amount collected
+                // CF: B2B (section header)
+                b2b: get(77),             // CG: B2B value or Closed on
+                closedOn: get(78),        // CH: Closed on
+                fathom3: get(79),         // CI: Fathom
+                commission: get(80),      // CJ: commission
+                setterCloser: get(81),    // CK: Setter & Closer
             };
         };
 
@@ -225,12 +195,16 @@
         };
 
         // Data Row Component
-        const DataRow = ({label, value, highlight, color}) => (
-            <div className="flex justify-between items-center p-2 hover:bg-dark-700/50 rounded">
-                <span className="text-gray-400 text-sm">{label}</span>
-                <span className={`font-medium text-sm ${highlight ? (color || 'text-accent-cyan') : 'text-white'}`}>{clean(value)}</span>
-            </div>
-        );
+        const DataRow = ({label, value, highlight, color}) => {
+            const displayVal = clean(value);
+            const isEmpty = displayVal === '—';
+            return (
+                <div className={`flex justify-between items-center p-2 rounded ${isEmpty ? '' : 'hover:bg-dark-700/50'}`}>
+                    <span className="text-gray-400 text-sm">{label}</span>
+                    <span className={`font-medium text-sm ${isEmpty ? 'text-gray-600' : highlight ? (color || 'text-accent-cyan') : 'text-white'}`}>{displayVal}</span>
+                </div>
+            );
+        };
 
         // Section Component
         const Section = ({title, icon, children, cols = 1}) => (
@@ -254,12 +228,12 @@
                         <PhaseBadge days={c.days}/>
                         <span className="text-gray-500">{c.campaign} • {c.callingStatus}</span>
                         {s?.csmRep && <span className="px-2 py-0.5 bg-accent-purple/20 text-accent-purple rounded-full text-xs">CSM: {s.csmRep}</span>}
-                        {s?.status && <span className={`px-2 py-0.5 rounded-full text-xs ${s.status.toLowerCase().includes('active') ? 'bg-accent-green/20 text-accent-green' : 'bg-gray-500/20 text-gray-400'}`}>{s.status}</span>}
+                        {s?.lender && s.lender !== 'None' && <span className="px-2 py-0.5 bg-accent-green/20 text-accent-green rounded-full text-xs">Lender: {s.lender}</span>}
                     </div>
                     <div className="card rounded-xl p-6">
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-lg font-semibold text-white">90-Day Progress</h3>
-                            <span className="text-gray-400">Day {c.days} of 90 {s?.daysLeft && `• ${s.daysLeft} left`}</span>
+                            <span className="text-gray-400">Day {c.days} of 90 {s?.daysLeft && <span className={pn(s.daysLeft) < 0 ? 'text-red-400' : 'text-accent-cyan'}>• {s.daysLeft} days left</span>}</span>
                         </div>
                         <div className="w-full bg-dark-700 rounded-full h-3 mb-2">
                             <div className="bg-gradient-to-r from-accent-cyan to-accent-purple h-3 rounded-full" style={{width:`${Math.min(c.days/90*100,100)}%`}}/>
@@ -274,16 +248,20 @@
                         <div className="card rounded-xl p-5 text-center"><div className="text-2xl font-bold text-white">{fmtD(c.cpl)}</div><div className="text-sm text-gray-500">Cost Per Lead</div></div>
                         <div className="card rounded-xl p-5 text-center"><div className="text-2xl font-bold text-accent-purple">{fmtN(c.appts)}</div><div className="text-sm text-gray-500">Appointments</div></div>
                     </div>
+                    {/* Alerts */}
+                    {s?.duePayment === 'OVERDUE' && (
+                        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
+                            <span className="text-red-400 font-semibold">💳 PAYMENT OVERDUE</span>
+                        </div>
+                    )}
                     {s?.redFlags && (
                         <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
-                            <div className="text-red-400 font-semibold mb-1">🚩 Red Flags</div>
-                            <div className="text-gray-300">{s.redFlags}</div>
+                            <span className="text-red-400 font-semibold">🚩 Red Flags:</span> <span className="text-gray-300">{s.redFlags}</span>
                         </div>
                     )}
                     {s?.unresolvedConcerns && (
                         <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4">
-                            <div className="text-amber-400 font-semibold mb-1">⚠️ Unresolved Concerns</div>
-                            <div className="text-gray-300">{s.unresolvedConcerns}</div>
+                            <span className="text-amber-400 font-semibold">⚠️ Concerns:</span> <span className="text-gray-300">{s.unresolvedConcerns}</span>
                         </div>
                     )}
                     <div className="card rounded-xl p-6">
@@ -309,9 +287,10 @@
                 <div className="space-y-6">
                     <h2 className="text-xl font-bold gradient-text">Client Information</h2>
                     
-                    {/* Alerts */}
-                    {(s?.redFlags || s?.unresolvedConcerns || s?.behindSchedule) && (
+                    {/* Alerts at top */}
+                    {(s?.duePayment === 'OVERDUE' || s?.redFlags || s?.unresolvedConcerns || s?.behindSchedule) && (
                         <div className="space-y-3">
+                            {s?.duePayment === 'OVERDUE' && <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4"><span className="text-red-400 font-semibold">💳 PAYMENT OVERDUE</span></div>}
                             {s?.redFlags && <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4"><span className="text-red-400 font-semibold">🚩 Red Flags:</span> <span className="text-gray-300">{s.redFlags}</span></div>}
                             {s?.unresolvedConcerns && <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4"><span className="text-amber-400 font-semibold">⚠️ Concerns:</span> <span className="text-gray-300">{s.unresolvedConcerns}</span></div>}
                             {s?.behindSchedule && <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4"><span className="text-amber-400 font-semibold">⏰ Behind Schedule:</span> <span className="text-gray-300">{s.behindSchedule}</span></div>}
@@ -320,33 +299,34 @@
 
                     <div className="grid lg:grid-cols-2 gap-6">
                         {/* CSM & Status */}
-                        <Section title="CSM & Status" icon="👤" cols={1}>
+                        <Section title="CSM & Status" icon="👤">
                             <DataRow label="CSM Rep" value={s?.csmRep} highlight color="text-accent-purple"/>
-                            <DataRow label="Status" value={s?.status} highlight/>
                             <DataRow label="Last Form" value={s?.lastForm}/>
-                            <DataRow label="Last Form Date" value={s?.lastFormDate}/>
+                            <DataRow label="Form Date" value={s?.lastFormDate}/>
+                            <DataRow label="Status" value={s?.status}/>
                             <DataRow label="Concern" value={s?.concern}/>
                             <DataRow label="Referral" value={s?.referral}/>
                             <DataRow label="Testimonial" value={s?.testimonial}/>
+                            <DataRow label="Lender" value={s?.lender}/>
                             <DataRow label="Last CSM Note" value={s?.lastCsmNote}/>
                             <DataRow label="Upcoming CSM Date" value={s?.upcomingCsmDate}/>
                         </Section>
 
-                        {/* Basic Info */}
-                        <Section title="Client Details" icon="📋" cols={1}>
+                        {/* Client Details */}
+                        <Section title="Client Details" icon="📋">
                             <DataRow label="State" value={s?.state || c.state}/>
                             <DataRow label="Campaign" value={s?.campaign || c.campaign}/>
-                            <DataRow label="Contract Category" value={s?.contractCategory}/>
+                            <DataRow label="Contract Category" value={s?.contractCategory} highlight/>
                             <DataRow label="Spanish" value={s?.spanish}/>
                             <DataRow label="MRR" value={s?.mrr} highlight color="text-accent-green"/>
-                            <DataRow label="Fulfilled" value={s?.fulfilled}/>
-                            <DataRow label="Days Left" value={s?.daysLeft} highlight/>
-                            <DataRow label="Due Payment" value={s?.duePayment}/>
-                            <DataRow label="Timezone" value={s?.timezone}/>
+                            <DataRow label="Fulfilled" value={s?.fulfilled} highlight color="text-accent-green"/>
+                            <DataRow label="Info" value={s?.info}/>
+                            <DataRow label="Days Left" value={s?.daysLeft} highlight color={pn(s?.daysLeft) < 0 ? 'text-red-400' : 'text-accent-cyan'}/>
+                            <DataRow label="Due Payment" value={s?.duePayment} highlight color={s?.duePayment === 'OVERDUE' ? 'text-red-400' : ''}/>
                         </Section>
                     </div>
 
-                    {/* Key Dates Timeline */}
+                    {/* Key Dates */}
                     <Section title="Key Dates & Timeline" icon="📅">
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2">
                             <div className="bg-dark-800 rounded-xl p-4 text-center">
@@ -378,8 +358,8 @@
                     </Section>
 
                     <div className="grid lg:grid-cols-2 gap-6">
-                        {/* Performance (from Setup Timing) */}
-                        <Section title="Performance Metrics" icon="📊" cols={1}>
+                        {/* Performance */}
+                        <Section title="Performance Metrics" icon="📊">
                             <DataRow label="Closings" value={s?.closings} highlight color="text-accent-green"/>
                             <DataRow label="Signed" value={s?.signed} highlight color="text-accent-green"/>
                             <DataRow label="Appts" value={s?.appts} highlight color="text-accent-purple"/>
@@ -389,7 +369,7 @@
                         </Section>
 
                         {/* Calling */}
-                        <Section title="Calling & Leads" icon="📞" cols={1}>
+                        <Section title="Calling & Leads" icon="📞">
                             <DataRow label="Calling" value={s?.calling}/>
                             <DataRow label="Dialer" value={s?.dialer}/>
                             <DataRow label="S Leads" value={s?.sLeads} highlight color="text-accent-cyan"/>
@@ -405,9 +385,11 @@
 
                     <div className="grid lg:grid-cols-2 gap-6">
                         {/* Onboarding */}
-                        <Section title="Onboarding" icon="🎯" cols={1}>
+                        <Section title="Onboarding" icon="🎯">
                             <DataRow label="Stage on CRM" value={s?.stageOnCrm}/>
-                            <DataRow label="Onboarding Rep" value={s?.onboardingRep}/>
+                            <DataRow label="Timezone" value={s?.timezone}/>
+                            <DataRow label="Rep" value={s?.onboardingRep}/>
+                            <DataRow label="Red Flags" value={s?.redFlags} highlight color="text-red-400"/>
                             <DataRow label="CRM Fees" value={s?.crmFees}/>
                             <DataRow label="Ad Spend Fees" value={s?.adSpendFees}/>
                             <DataRow label="Responsiveness" value={s?.responsiveness}/>
@@ -417,7 +399,7 @@
                         </Section>
 
                         {/* Ads */}
-                        <Section title="Ads & Targeting" icon="📢" cols={1}>
+                        <Section title="Ads & Targeting" icon="📢">
                             <DataRow label="Ad Account" value={s?.adAccountName || c.adAccount}/>
                             <DataRow label="Ad Spend" value={s?.adSpend} highlight color="text-accent-cyan"/>
                             <DataRow label="Radius" value={s?.radius}/>
@@ -432,23 +414,26 @@
 
                     <div className="grid lg:grid-cols-2 gap-6">
                         {/* Client Profile */}
-                        <Section title="Client Profile" icon="🧠" cols={1}>
+                        <Section title="Client Profile" icon="🧠">
                             <DataRow label="Personality" value={s?.personality}/>
                             <DataRow label="Expectations" value={s?.expectations}/>
+                            <DataRow label="Unresolved Concerns" value={s?.unresolvedConcerns} highlight color="text-amber-400"/>
                             <DataRow label="1st Check-in" value={s?.firstCheckin}/>
                             <DataRow label="1st CSM" value={s?.firstCsm}/>
+                            <DataRow label="Fathom" value={s?.fathom2}/>
                         </Section>
 
                         {/* Billing */}
-                        <Section title="Billing & Contract" icon="💳" cols={1}>
+                        <Section title="Billing & Contract" icon="💳">
                             <DataRow label="Revenue Contracted" value={s?.revenueContracted} highlight color="text-accent-green"/>
                             <DataRow label="Contract Length" value={s?.contractLength}/>
-                            <DataRow label="Payments Collected" value={s?.moPaymentsCollected}/>
+                            <DataRow label="Mo Payments Collected" value={s?.moPaymentsCollected}/>
                             <DataRow label="Billing Adjust" value={s?.billingAdjust}/>
                             <DataRow label="Platform" value={s?.platform}/>
-                            <DataRow label="Amount Collected" value={s?.amountCollected} highlight color="text-accent-green"/>
+                            <DataRow label="Name/Email" value={s?.nameEmail}/>
                             <DataRow label="Contract Notes" value={s?.contractNotes}/>
                             <DataRow label="Payment Notes" value={s?.paymentNotes}/>
+                            <DataRow label="Amount Collected" value={s?.amountCollected} highlight color="text-accent-green"/>
                         </Section>
                     </div>
 
@@ -456,9 +441,9 @@
                     <Section title="Sales & Commission" icon="💼" cols={2}>
                         <DataRow label="B2B" value={s?.b2b}/>
                         <DataRow label="Closed On" value={s?.closedOn}/>
+                        <DataRow label="Fathom" value={s?.fathom3}/>
                         <DataRow label="Commission" value={s?.commission}/>
                         <DataRow label="Setter & Closer" value={s?.setterCloser}/>
-                        <DataRow label="Name/Email" value={s?.nameEmail}/>
                     </Section>
                 </div>
             );
@@ -477,13 +462,6 @@
                             <div className="card rounded-xl p-5 text-center"><div className="text-2xl font-bold text-accent-cyan">{fmtD(c.spendPerDay)}</div><div className="text-sm text-gray-500">Actual/Day</div></div>
                             <div className="card rounded-xl p-5 text-center"><div className="text-2xl font-bold text-accent-purple">{c.weeks}</div><div className="text-sm text-gray-500">Weeks Running</div></div>
                         </div>
-                        <div className="card rounded-xl p-5 mt-4">
-                            <div className="grid grid-cols-3 gap-4 text-center">
-                                <div><div className="text-lg font-bold text-white">{fmt(c.sellerSpend)}</div><div className="text-xs text-gray-500">Seller Spend</div></div>
-                                <div><div className="text-lg font-bold text-white">{fmt(c.buyerSpend)}</div><div className="text-xs text-gray-500">Buyer Spend</div></div>
-                                <div><div className="text-lg font-bold text-accent-cyan">{fmt(c.spend)}</div><div className="text-xs text-gray-500">Total</div></div>
-                            </div>
-                        </div>
                     </div>
                     <div>
                         <h2 className="text-xl font-bold text-white mb-4">🎯 Lead Generation</h2>
@@ -492,13 +470,6 @@
                             <div className="card rounded-xl p-5 text-center"><div className="text-2xl font-bold text-white">{fmtN(c.sellerLeads)}</div><div className="text-sm text-gray-500">Seller Leads</div></div>
                             <div className="card rounded-xl p-5 text-center"><div className="text-2xl font-bold text-white">{fmtN(c.buyerLeads)}</div><div className="text-sm text-gray-500">Buyer Leads</div></div>
                             <div className="card rounded-xl p-5 text-center"><div className="text-2xl font-bold text-accent-purple">{fmtN(c.listingLeads)}</div><div className="text-sm text-gray-500">Listing Leads</div></div>
-                        </div>
-                        <div className="card rounded-xl p-5 mt-4">
-                            <div className="grid md:grid-cols-3 gap-4">
-                                <div className="flex justify-between"><span className="text-gray-400">Overall CPL</span><span className="font-mono text-white">{fmtD(c.cpl)}</span></div>
-                                <div className="flex justify-between"><span className="text-gray-400">Seller CPL</span><span className="font-mono text-white">{fmtD(c.sellerCPL)}</span></div>
-                                <div className="flex justify-between"><span className="text-gray-400">Seller Leads/Week</span><span className="font-mono text-accent-cyan">{c.sellerLeadsWeek.toFixed(1)}</span></div>
-                            </div>
                         </div>
                     </div>
                     <div>
@@ -583,13 +554,13 @@
                     if(client) {
                         const c = client;
                         if(q.includes('summary')||q.includes('overview')) {
-                            res = `📊 ${c.client} Summary:\n• Day ${c.days}\n• CSM: ${s?.csmRep || 'N/A'}\n• Status: ${s?.status || 'N/A'}\n• Spend: ${fmt(c.spend)}\n• Leads: ${fmtN(c.leads)} (${fmtD(c.cpl)} CPL)\n• Appts: ${fmtN(c.appts)}\n• Deals: ${fmtN(c.deals)}\n• MRR: ${s?.mrr || 'N/A'}`;
+                            res = `📊 ${c.client} Summary:\n• Day ${c.days}\n• CSM: ${s?.csmRep || 'N/A'}\n• State: ${s?.state || c.state}\n• MRR: ${s?.mrr || 'N/A'}\n• Contract: ${s?.contractCategory || 'N/A'}\n• Spend: ${fmt(c.spend)}\n• Leads: ${fmtN(c.leads)} (${fmtD(c.cpl)} CPL)\n• Appts: ${fmtN(c.appts)}\n• Days Left: ${s?.daysLeft || 'N/A'}`;
                         } else if(q.includes('billing')||q.includes('payment')||q.includes('contract')) {
-                            res = `💳 Billing Info:\n• Revenue: ${s?.revenueContracted || 'N/A'}\n• Contract: ${s?.contractLength || 'N/A'}\n• Collected: ${s?.amountCollected || 'N/A'}\n• MRR: ${s?.mrr || 'N/A'}\n• Due: ${s?.duePayment || 'N/A'}`;
+                            res = `💳 Billing Info:\n• MRR: ${s?.mrr || 'N/A'}\n• Fulfilled: ${s?.fulfilled || 'N/A'}\n• Contract: ${s?.contractCategory || 'N/A'}\n• Revenue: ${s?.revenueContracted || 'N/A'}\n• Length: ${s?.contractLength || 'N/A'}\n• Due: ${s?.duePayment || 'N/A'}\n• Platform: ${s?.platform || 'N/A'}`;
                         } else if(q.includes('timeline')||q.includes('dates')) {
-                            res = `📅 Timeline:\n• Paid: ${s?.paidDate || 'N/A'}\n• Onboarded: ${s?.onboardedDate || 'N/A'}\n• Launch Call: ${s?.launchCallDate || 'N/A'}\n• Ads Live: ${s?.adLiveDate || 'N/A'}`;
+                            res = `📅 Timeline:\n• Paid: ${s?.paidDate || 'N/A'}\n• Onboarded: ${s?.onboardedDate || 'N/A'}\n• Launch Call: ${s?.launchCallDate || 'N/A'}\n• Ads Live: ${s?.adLiveDate || 'N/A'}\n• Days Left: ${s?.daysLeft || 'N/A'}`;
                         } else if(q.includes('concern')||q.includes('flag')||q.includes('issue')) {
-                            res = `⚠️ Issues:\n• Red Flags: ${s?.redFlags || 'None'}\n• Concerns: ${s?.unresolvedConcerns || 'None'}\n• Behind: ${s?.behindSchedule || 'No'}`;
+                            res = `⚠️ Issues:\n• Red Flags: ${s?.redFlags || 'None'}\n• Concerns: ${s?.unresolvedConcerns || 'None'}\n• Payment: ${s?.duePayment || 'N/A'}`;
                         } else {
                             res = `Ask about ${c.client}:\n• "Summary"\n• "Billing/payment"\n• "Timeline/dates"\n• "Concerns/flags"`;
                         }
@@ -632,26 +603,53 @@
             const [tab, setTab] = useState('overview');
             const [aiOpen, setAiOpen] = useState(false);
             const [loading, setLoading] = useState(true);
+            const [debugInfo, setDebugInfo] = useState('');
 
             useEffect(() => {
                 Promise.all([
+                    // Fetch Media Buying data (skip 2 header rows)
                     fetch(URLS.clients).then(r=>r.text()).then(csv=>{
                         const lines = csv.split('\n');
                         return Papa.parse(lines.slice(2).join('\n'), {header:true, skipEmptyLines:true}).data.map(mapClient).filter(r=>r.client);
                     }).catch(()=>[]),
+                    
+                    // Fetch Setup Timing - parse by INDEX not by header name
                     fetch(URLS.setupTiming).then(r=>r.text()).then(csv=>{
                         const lines = csv.split('\n');
-                        return Papa.parse(lines.slice(2).join('\n'), {header:true, skipEmptyLines:true}).data.map(mapSetupTiming).filter(r=>r.client && !r.client.includes('VAM') && !r.client.includes('Active'));
-                    }).catch(()=>[])
-                ]).then(([c, s]) => { setClients(c); setSetupData(s); setLoading(false); });
+                        // Skip row 1 (section headers) and row 2 (column sub-headers like "Rep", "6", "5", etc.)
+                        // Data starts at row 3
+                        const dataLines = lines.slice(2);
+                        
+                        // Parse WITHOUT headers - get raw values by position
+                        const parsed = Papa.parse(dataLines.join('\n'), {header:false, skipEmptyLines:true});
+                        
+                        // Map each row by column index
+                        const mapped = parsed.data
+                            .map(row => mapSetupTimingByIndex(row))
+                            .filter(r => r.client && !r.client.includes('VAM') && !r.client.includes('Active Clients'));
+                        
+                        return mapped;
+                    }).catch(e => { console.error('Setup fetch error:', e); return []; })
+                ]).then(([c, s]) => { 
+                    setClients(c); 
+                    setSetupData(s);
+                    setLoading(false); 
+                });
             }, []);
 
             const getSetupInfo = (client) => {
                 if(!client) return null;
-                const name = client.client.toLowerCase();
+                const name = client.client.toLowerCase().trim();
                 return setupData.find(s => {
-                    const sn = s.client.toLowerCase();
-                    return sn === name || sn.includes(name) || name.includes(sn) || name.split(' ').some(p => sn.includes(p) && p.length > 2);
+                    const sn = (s.client || '').toLowerCase().trim();
+                    // Exact match first
+                    if(sn === name) return true;
+                    // Partial match
+                    if(sn.includes(name) || name.includes(sn)) return true;
+                    // Match by first/last name parts
+                    const nameParts = name.split(' ').filter(p => p.length > 2);
+                    const snParts = sn.split(' ').filter(p => p.length > 2);
+                    return nameParts.some(p => sn.includes(p)) || snParts.some(p => name.includes(p));
                 });
             };
 
@@ -698,7 +696,7 @@
                                         <Badge health={getHealth(selected.cpl)}/>
                                         <span className="text-gray-500">Day {selected.days}</span>
                                         {s?.csmRep && <span className="text-accent-purple text-sm">CSM: {s.csmRep}</span>}
-                                        {s?.status && <span className="px-2 py-0.5 bg-dark-600 text-gray-300 rounded text-xs">{s.status}</span>}
+                                        {s?.mrr && <span className="text-accent-green text-sm">MRR: {s.mrr}</span>}
                                     </div>
                                 ) : <h2 className="text-xl text-gray-500">Select a client</h2>}
                             </div>
