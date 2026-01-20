@@ -120,14 +120,13 @@
             return { text: 'text-red-400', bg: 'bg-red-500', label: 'At Risk' };
         };
 
+        // UPDATED TABS - Removed "Weekly Updates" and "GHL Help"
         const tabs = [
             { id: 'health', name: 'Client Health', icon: '❤️', desc: 'Overview of client status and metrics' },
             { id: 'scripts', name: 'Call Scripts', icon: '📞', desc: 'Phone scripts for different scenarios' },
             { id: 'livehelp', name: 'Live Call Help', icon: '🎧', desc: 'Real-time support during client calls' },
             { id: 'strategy', name: 'Strategy', icon: '🎯', desc: 'Bottleneck identification and action planning' },
-            { id: 'ghl', name: 'GHL Help', icon: '⚙️', desc: 'Platform-specific guidance (GoHighLevel CRM)' },
             { id: 'save', name: 'Save the Client', icon: '🚨', desc: 'Intervention playbooks for at-risk clients' },
-            { id: 'weekly', name: 'Weekly Updates', icon: '📅', desc: 'Log weekly check-in notes' },
             { id: 'notes', name: 'Notes & Activity', icon: '📝', desc: 'Notes, meetings, and activity log' },
         ];
 
@@ -503,26 +502,6 @@
             );
         };
 
-        // ========== GHL HELP TAB ==========
-        const GHLHelpTab = ({ c }) => {
-            const guides = [
-                { title: 'How to Check Lead Status', steps: ['Log into GoHighLevel', 'Go to Contacts > Smart Lists', 'Filter by client name', 'Review lead status'] },
-                { title: 'How to Set Up Automations', steps: ['Go to Automation > Workflows', 'Click "Create Workflow"', 'Choose trigger', 'Add actions', 'Test and activate'] },
-                { title: 'Troubleshooting: Leads Not Syncing', steps: ['Check Facebook integration', 'Verify correct form connected', 'Check for errors', 'Re-sync integration'] },
-            ];
-            return (
-                <div className="space-y-4">
-                    <div className="card p-6"><h3 className="text-lg font-semibold text-white mb-2">⚙️ GoHighLevel Help</h3></div>
-                    {guides.map((guide, i) => (
-                        <details key={i} className="card">
-                            <summary className="p-4 cursor-pointer font-medium text-white">{guide.title}</summary>
-                            <div className="p-4 pt-0 border-t border-dark-700"><ul className="space-y-1">{guide.steps.map((step, j) => <li key={j} className="text-sm text-slate-300">{j+1}. {step}</li>)}</ul></div>
-                        </details>
-                    ))}
-                </div>
-            );
-        };
-
         // ========== SAVE THE CLIENT TAB ==========
         const SaveClientTab = ({ c, s }) => {
             const score = getHealthScore(c, s);
@@ -559,50 +538,15 @@
             );
         };
 
-        // ========== WEEKLY UPDATES TAB ==========
-        const WeeklyUpdatesTab = ({ c }) => {
-            const { user } = useAuth();
-            const [updates, setUpdates] = useState([]);
-            const [newUpdate, setNewUpdate] = useState('');
-            const [weekOf, setWeekOf] = useState(new Date().toISOString().split('T')[0]);
-
-            useEffect(() => { if (c?.client) loadUpdates(); }, [c?.client]);
-            const loadUpdates = async () => { const { data } = await supabase.from('weekly_updates').select('*').eq('client_name', c.client).order('week_of', { ascending: false }); if (data) setUpdates(data); };
-            const addUpdate = async () => { if (!newUpdate.trim()) return; const { data } = await supabase.from('weekly_updates').insert({ client_name: c.client, week_of: weekOf, update_text: newUpdate, user_email: user?.email }).select().single(); if (data) { setUpdates([data, ...updates]); setNewUpdate(''); } };
-
-            if (!c) return <div className="card p-12 text-center text-slate-500">Select a client</div>;
-            return (
-                <div className="space-y-6">
-                    <div className="card p-6">
-                        <h3 className="text-lg font-semibold text-white mb-4">📅 Log Weekly Update</h3>
-                        <input type="date" value={weekOf} onChange={e => setWeekOf(e.target.value)} className="bg-dark-800 border border-dark-700 rounded-xl px-4 py-2 text-white mb-4" />
-                        <textarea value={newUpdate} onChange={e => setNewUpdate(e.target.value)} placeholder="What happened this week?" className="w-full bg-dark-800 border border-dark-700 rounded-xl p-4 text-white min-h-[120px]" />
-                        <button onClick={addUpdate} className="mt-3 px-6 py-3 bg-brand-cyan text-dark-900 font-semibold rounded-xl">Save Update</button>
-                    </div>
-                    <div className="card p-6">
-                        <h3 className="text-lg font-semibold text-white mb-4">📚 History</h3>
-                        {updates.length === 0 ? <div className="text-slate-500 text-center py-8">No updates yet</div> : (
-                            <div className="space-y-4">{updates.map(u => (
-                                <div key={u.id} className="p-4 bg-dark-800 rounded-xl">
-                                    <div className="flex justify-between items-center mb-2"><span className="font-medium text-white">Week of {new Date(u.week_of).toLocaleDateString()}</span><span className="text-xs text-slate-500">{getDisplayName(u.user_email)}</span></div>
-                                    <p className="text-slate-300 text-sm whitespace-pre-wrap">{u.update_text}</p>
-                                </div>
-                            ))}</div>
-                        )}
-                    </div>
-                </div>
-            );
-        };
-
-        // ========== COMBINED NOTES & ACTIVITY TAB ==========
+        // ========== COMBINED NOTES, MEETINGS & ACTIVITY TAB (ALL ON ONE PAGE) ==========
         const NotesActivityTab = ({ c }) => {
             const { user } = useAuth();
-            const [activeSubTab, setActiveSubTab] = useState('notes');
             const [notes, setNotes] = useState([]);
             const [meetings, setMeetings] = useState([]);
             const [activities, setActivities] = useState([]);
             const [newNote, setNewNote] = useState('');
             const [transcript, setTranscript] = useState('');
+            const [meetingDate, setMeetingDate] = useState(new Date().toISOString().split('T')[0]);
             const [processing, setProcessing] = useState(false);
             const [summary, setSummary] = useState(null);
 
@@ -637,107 +581,112 @@
             };
 
             const saveMeeting = async () => {
-                if (!summary) return;
+                if (!summary && !transcript.trim()) return;
                 const { data } = await supabase.from('meeting_notes').insert({
-                    client_name: c.client, meeting_date: new Date().toISOString().split('T')[0],
-                    transcript, summary: summary.summary, client_sentiment: summary.clientSentiment,
-                    key_points: summary.keyPoints, action_items: summary.actionItems, risk_level: summary.riskLevel,
+                    client_name: c.client, meeting_date: meetingDate,
+                    transcript, summary: summary?.summary || 'Manual entry',
+                    client_sentiment: summary?.clientSentiment || 'neutral',
+                    key_points: summary?.keyPoints || [], action_items: summary?.actionItems || [],
+                    risk_level: summary?.riskLevel || 'medium',
                     user_email: user?.email
                 }).select().single();
                 if (data) { setMeetings([data, ...meetings]); setTranscript(''); setSummary(null); }
-                await supabase.from('activity_log').insert({ user_email: user?.email, client_name: c.client, action: 'Added meeting notes', details: summary.summary?.substring(0, 50) });
+                await supabase.from('activity_log').insert({ user_email: user?.email, client_name: c.client, action: 'Added meeting notes', details: (summary?.summary || 'Manual entry').substring(0, 50) });
             };
 
             if (!c) return <div className="card p-12 text-center text-slate-500">Select a client</div>;
 
             return (
                 <div className="space-y-6">
-                    {/* Sub-tabs */}
-                    <div className="flex gap-2">
-                        {[{ id: 'notes', label: '📝 Notes' }, { id: 'meetings', label: '🎙️ Meetings' }, { id: 'activity', label: '📋 Activity' }].map(t => (
-                            <button key={t.id} onClick={() => setActiveSubTab(t.id)} className={`px-4 py-2 rounded-lg text-sm font-medium ${activeSubTab === t.id ? 'bg-brand-cyan text-dark-900' : 'bg-dark-800 text-slate-400'}`}>{t.label}</button>
-                        ))}
+                    {/* ===== QUICK NOTES SECTION ===== */}
+                    <div className="card p-6">
+                        <h3 className="text-lg font-semibold text-white mb-4">📝 Quick Notes</h3>
+                        <div className="flex gap-3">
+                            <input value={newNote} onChange={e => setNewNote(e.target.value)} onKeyPress={e => e.key === 'Enter' && addNote()} placeholder="Add a note..." className="flex-1 bg-dark-800 border border-dark-700 rounded-xl px-4 py-3 text-white" />
+                            <button onClick={addNote} className="px-6 py-3 bg-brand-cyan text-dark-900 font-semibold rounded-xl">Add</button>
+                        </div>
                     </div>
 
-                    {/* Notes */}
-                    {activeSubTab === 'notes' && (
-                        <>
-                            <div className="card p-6">
-                                <h3 className="text-lg font-semibold text-white mb-4">📝 Quick Notes</h3>
-                                <div className="flex gap-3">
-                                    <input value={newNote} onChange={e => setNewNote(e.target.value)} onKeyPress={e => e.key === 'Enter' && addNote()} placeholder="Add a note..." className="flex-1 bg-dark-800 border border-dark-700 rounded-xl px-4 py-3 text-white" />
-                                    <button onClick={addNote} className="px-6 py-3 bg-brand-cyan text-dark-900 font-semibold rounded-xl">Add</button>
-                                </div>
-                            </div>
-                            <div className="card p-6">
-                                <h3 className="text-lg font-semibold text-white mb-4">📚 Notes History</h3>
-                                {notes.length === 0 ? <div className="text-slate-500 text-center py-8">No notes yet</div> : (
-                                    <div className="space-y-3 max-h-[400px] overflow-y-auto scrollbar">
-                                        {notes.map(n => (
-                                            <div key={n.id} className="p-4 bg-dark-800 rounded-xl group">
-                                                <div className="flex justify-between items-start">
-                                                    <div><span className="text-brand-purple text-sm font-medium">{getDisplayName(n.user_email)}</span><span className="text-slate-600 text-sm ml-2">{new Date(n.created_at).toLocaleString()}</span></div>
-                                                    <button onClick={() => deleteNote(n.id)} className="text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100">✕</button>
-                                                </div>
-                                                <p className="text-white mt-2">{n.note_text}</p>
-                                            </div>
-                                        ))}
+                    {/* ===== NOTES HISTORY ===== */}
+                    <div className="card p-6">
+                        <h3 className="text-lg font-semibold text-white mb-4">📚 Notes History</h3>
+                        {notes.length === 0 ? <div className="text-slate-500 text-center py-4">No notes yet</div> : (
+                            <div className="space-y-3 max-h-[300px] overflow-y-auto scrollbar">
+                                {notes.map(n => (
+                                    <div key={n.id} className="p-4 bg-dark-800 rounded-xl group">
+                                        <div className="flex justify-between items-start">
+                                            <div><span className="text-brand-purple text-sm font-medium">{getDisplayName(n.user_email)}</span><span className="text-slate-600 text-sm ml-2">{new Date(n.created_at).toLocaleString()}</span></div>
+                                            <button onClick={() => deleteNote(n.id)} className="text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100">✕</button>
+                                        </div>
+                                        <p className="text-white mt-2">{n.note_text}</p>
                                     </div>
-                                )}
+                                ))}
                             </div>
-                        </>
-                    )}
+                        )}
+                    </div>
 
-                    {/* Meetings */}
-                    {activeSubTab === 'meetings' && (
-                        <>
-                            <div className="card p-6">
-                                <h3 className="text-lg font-semibold text-white mb-4">🎙️ New Meeting Transcript</h3>
-                                <textarea value={transcript} onChange={e => setTranscript(e.target.value)} placeholder="Paste transcript from Fathom, Otter, etc..." className="w-full bg-dark-800 border border-dark-700 rounded-xl p-4 text-white min-h-[150px]" />
-                                <div className="flex gap-3 mt-3">
-                                    <button onClick={processTranscript} disabled={!transcript.trim() || processing} className="px-6 py-3 bg-gradient-to-r from-brand-cyan to-brand-purple text-white font-semibold rounded-xl disabled:opacity-50">{processing ? '🤖 Analyzing...' : '🤖 Analyze'}</button>
-                                    {summary && <button onClick={saveMeeting} className="px-6 py-3 bg-emerald-500/20 text-emerald-400 rounded-xl">💾 Save</button>}
-                                </div>
-                                {summary && <div className="mt-4 p-4 bg-dark-800 rounded-xl"><p className="text-slate-300">{summary.summary}</p></div>}
+                    {/* ===== MEETING TRANSCRIPT SECTION ===== */}
+                    <div className="card p-6">
+                        <h3 className="text-lg font-semibold text-white mb-4">🎙️ Meeting Transcript Summary</h3>
+                        <div className="flex gap-4 mb-4">
+                            <input type="date" value={meetingDate} onChange={e => setMeetingDate(e.target.value)} className="bg-dark-800 border border-dark-700 rounded-xl px-4 py-2 text-white" />
+                        </div>
+                        <textarea value={transcript} onChange={e => setTranscript(e.target.value)} placeholder="Paste transcript from Fathom, Otter, Zoom, etc..." className="w-full bg-dark-800 border border-dark-700 rounded-xl p-4 text-white min-h-[150px]" />
+                        <div className="flex gap-3 mt-3">
+                            <button onClick={processTranscript} disabled={!transcript.trim() || processing} className="px-6 py-3 bg-gradient-to-r from-brand-cyan to-brand-purple text-white font-semibold rounded-xl disabled:opacity-50">{processing ? '🤖 Analyzing...' : '🤖 Analyze with AI'}</button>
+                            <button onClick={saveMeeting} disabled={!transcript.trim()} className="px-6 py-3 bg-emerald-500/20 text-emerald-400 rounded-xl disabled:opacity-50">💾 Save Meeting</button>
+                        </div>
+                        {summary && (
+                            <div className="mt-4 p-4 bg-dark-800 rounded-xl space-y-3">
+                                <div><span className="text-slate-400 text-sm">Summary:</span><p className="text-white">{summary.summary}</p></div>
+                                {summary.clientSentiment && <div><span className="text-slate-400 text-sm">Sentiment:</span><span className="text-white ml-2">{summary.clientSentiment}</span></div>}
+                                {summary.riskLevel && <div><span className="text-slate-400 text-sm">Risk Level:</span><span className={`ml-2 px-2 py-1 rounded text-xs ${summary.riskLevel === 'high' ? 'bg-red-500/20 text-red-400' : summary.riskLevel === 'medium' ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-500/20 text-emerald-400'}`}>{summary.riskLevel}</span></div>}
+                                {summary.keyPoints?.length > 0 && <div><span className="text-slate-400 text-sm">Key Points:</span><ul className="mt-1 space-y-1">{summary.keyPoints.map((kp, i) => <li key={i} className="text-slate-300 text-sm">• {kp}</li>)}</ul></div>}
+                                {summary.actionItems?.length > 0 && <div><span className="text-slate-400 text-sm">Action Items:</span><ul className="mt-1 space-y-1">{summary.actionItems.map((ai, i) => <li key={i} className="text-slate-300 text-sm">• {ai.task} ({ai.owner})</li>)}</ul></div>}
                             </div>
-                            <div className="card p-6">
-                                <h3 className="text-lg font-semibold text-white mb-4">📚 Meeting History</h3>
-                                {meetings.length === 0 ? <div className="text-slate-500 text-center py-8">No meetings</div> : (
-                                    <div className="space-y-3">{meetings.map(m => (
-                                        <div key={m.id} className="p-4 bg-dark-800 rounded-xl">
-                                            <div className="flex justify-between items-center mb-2">
-                                                <span className="text-white font-medium">{new Date(m.meeting_date).toLocaleDateString()}</span>
+                        )}
+                    </div>
+
+                    {/* ===== MEETING HISTORY ===== */}
+                    <div className="card p-6">
+                        <h3 className="text-lg font-semibold text-white mb-4">📅 Meeting History</h3>
+                        {meetings.length === 0 ? <div className="text-slate-500 text-center py-4">No meetings recorded</div> : (
+                            <div className="space-y-3 max-h-[300px] overflow-y-auto scrollbar">
+                                {meetings.map(m => (
+                                    <div key={m.id} className="p-4 bg-dark-800 rounded-xl">
+                                        <div className="flex justify-between items-center mb-2">
+                                            <span className="text-white font-medium">{new Date(m.meeting_date).toLocaleDateString()}</span>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-slate-500 text-xs">{getDisplayName(m.user_email)}</span>
                                                 <span className={`px-2 py-1 rounded text-xs ${m.risk_level === 'high' ? 'bg-red-500/20 text-red-400' : m.risk_level === 'medium' ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-500/20 text-emerald-400'}`}>{m.risk_level}</span>
                                             </div>
-                                            <p className="text-slate-400 text-sm">{m.summary}</p>
                                         </div>
-                                    ))}</div>
-                                )}
+                                        <p className="text-slate-400 text-sm">{m.summary}</p>
+                                    </div>
+                                ))}
                             </div>
-                        </>
-                    )}
+                        )}
+                    </div>
 
-                    {/* Activity */}
-                    {activeSubTab === 'activity' && (
-                        <div className="card p-6">
-                            <h3 className="text-lg font-semibold text-white mb-4">📋 Activity Log</h3>
-                            {activities.length === 0 ? <div className="text-slate-500 text-center py-8">No activity</div> : (
-                                <div className="space-y-2 max-h-[500px] overflow-y-auto scrollbar">
-                                    {activities.map(a => (
-                                        <div key={a.id} className="p-3 bg-dark-800 rounded-lg flex items-center gap-4">
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-brand-purple font-medium text-sm">{getDisplayName(a.user_email)}</span>
-                                                    <span className="text-slate-600 text-xs">{new Date(a.created_at).toLocaleString()}</span>
-                                                </div>
-                                                <div className="text-slate-400 text-sm">{a.action}</div>
+                    {/* ===== ACTIVITY LOG ===== */}
+                    <div className="card p-6">
+                        <h3 className="text-lg font-semibold text-white mb-4">📋 Activity Log</h3>
+                        {activities.length === 0 ? <div className="text-slate-500 text-center py-4">No activity yet</div> : (
+                            <div className="space-y-2 max-h-[250px] overflow-y-auto scrollbar">
+                                {activities.map(a => (
+                                    <div key={a.id} className="p-3 bg-dark-800 rounded-lg flex items-center gap-4">
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-brand-purple font-medium text-sm">{getDisplayName(a.user_email)}</span>
+                                                <span className="text-slate-600 text-xs">{new Date(a.created_at).toLocaleString()}</span>
                                             </div>
+                                            <div className="text-slate-400 text-sm">{a.action}</div>
                                         </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 </div>
             );
         };
@@ -789,9 +738,7 @@
                     case 'scripts': return <CallScriptsTab c={selected} s={s} />;
                     case 'livehelp': return <LiveCallHelpTab c={selected} s={s} />;
                     case 'strategy': return <StrategyTab c={selected} s={s} />;
-                    case 'ghl': return <GHLHelpTab c={selected} />;
                     case 'save': return <SaveClientTab c={selected} s={s} />;
-                    case 'weekly': return <WeeklyUpdatesTab c={selected} />;
                     case 'notes': return <NotesActivityTab c={selected} />;
                     default: return <ClientHealthTab c={selected} s={s} />;
                 }
