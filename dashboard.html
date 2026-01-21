@@ -73,17 +73,6 @@
         const getHealth = cpl => { if(!cpl) return 'gray'; if(cpl<=25) return 'green'; if(cpl<=50) return 'yellow'; return 'red'; };
         const healthColors = { green: 'bg-emerald-500', yellow: 'bg-amber-500', red: 'bg-red-500', gray: 'bg-slate-500' };
 
-        const tabs = [
-            { id: 'overview', name: 'All Clients', icon: '📊', desc: 'Overview of all client metrics' },
-            { id: 'scripts', name: 'Call Scripts', icon: '📞', desc: 'Phone scripts for different scenarios' },
-            { id: 'livehelp', name: 'Live Call Help', icon: '🎧', desc: 'Real-time support during client calls' },
-            { id: 'strategy', name: 'Strategy', icon: '🎯', desc: 'Bottleneck identification and action planning' },
-            { id: 'ghl', name: 'GHL Help', icon: '⚙️', desc: 'Platform-specific guidance (GoHighLevel CRM)' },
-            { id: 'save', name: 'Save the Client', icon: '🚨', desc: 'Intervention playbooks for at-risk clients' },
-            { id: 'weekly', name: 'Weekly Updates', icon: '📅', desc: 'Log weekly check-in notes' },
-            { id: 'notes', name: 'Notes & Activity', icon: '📝', desc: 'Notes, meetings, and activity log' },
-        ];
-
         // ========== LOGIN ==========
         const LoginPage = ({ onLogin }) => {
             const [email, setEmail] = useState('');
@@ -120,8 +109,8 @@
             );
         };
 
-        // ========== ALL CLIENTS OVERVIEW TAB ==========
-        const AllClientsTab = ({ clients, setupData, onClientClick }) => {
+        // ========== ALL CLIENTS OVERVIEW ==========
+        const AllClientsView = ({ clients, setupData, onClientClick }) => {
             const [sortBy, setSortBy] = useState('client');
             const [sortDir, setSortDir] = useState('asc');
             const [filter, setFilter] = useState('');
@@ -238,230 +227,12 @@
             );
         };
 
-        // ========== CALL SCRIPTS TAB (General - no client selected) ==========
-        const CallScriptsTab = () => {
-            const scripts = [
-                { name: 'Check-In Call', icon: '📞', content: `Hi [Client], this is [Your Name] from Veriad Marketing! How are you doing today?\n\n[Wait for response]\n\nGreat! I wanted to check in and see how things are going with your leads. Have you been able to connect with any of them this week?\n\n[Listen and take notes]\n\nLet me pull up your account... [Review their metrics]\n\nAny questions for me?` },
-                { name: 'Concern/Complaint Call', icon: '😟', content: `Hi [Client], thank you for reaching out. I understand you have some concerns and I want to make sure we address them properly.\n\nCan you tell me more about what's been happening?\n\n[Listen carefully, don't interrupt]\n\nI really appreciate you sharing that with me. I can understand how that would be frustrating.\n\nHere's what I'd like to do:\n1. [Immediate action]\n2. [Follow-up action]\n3. [Timeline]\n\nDoes that sound like a good plan?` },
-                { name: 'Lead Quality Issue', icon: '🎯', content: `Hi [Client], I wanted to follow up on the lead quality feedback you shared.\n\nA few questions to help me optimize:\n1. What percentage of leads are answering when you call?\n2. Are they motivated sellers/buyers?\n3. What's your typical follow-up process?\n\n[Based on answers, suggest optimization]` },
-                { name: 'Upsell/Expansion', icon: '📈', content: `Hi [Client], I've been looking at your results and I'm really impressed!\n\nI wanted to discuss an opportunity to scale your success. Have you considered:\n- Adding buyer leads to your campaign?\n- Expanding to additional zip codes?\n- Increasing your daily budget?\n\nWhat do you think would help you close more deals?` },
-            ];
-
-            return (
-                <div className="space-y-4">
-                    <div className="card p-6">
-                        <h3 className="text-lg font-semibold text-white mb-2">📞 Call Scripts</h3>
-                        <p className="text-slate-400 text-sm">General phone scripts. Select a client from Client Hub for personalized scripts.</p>
-                    </div>
-                    {scripts.map((script, i) => (
-                        <details key={i} className="card">
-                            <summary className="p-4 cursor-pointer flex items-center gap-3 hover:bg-dark-800 rounded-xl">
-                                <span className="text-xl">{script.icon}</span>
-                                <span className="font-medium text-white">{script.name}</span>
-                            </summary>
-                            <div className="p-4 pt-0 border-t border-dark-700">
-                                <pre className="whitespace-pre-wrap text-sm text-slate-300 font-sans leading-relaxed">{script.content}</pre>
-                                <button onClick={() => navigator.clipboard.writeText(script.content)} className="mt-4 px-4 py-2 bg-brand-cyan/20 text-brand-cyan rounded-lg text-sm">📋 Copy Script</button>
-                            </div>
-                        </details>
-                    ))}
-                </div>
-            );
-        };
-
-        // ========== LIVE CALL HELP TAB ==========
-        const LiveCallHelpTab = () => {
-            const [situation, setSituation] = useState('');
-            const [response, setResponse] = useState('');
-            const [loading, setLoading] = useState(false);
-
-            const quickResponses = [
-                { q: 'Client says leads are bad', a: 'I understand your concern. Let me ask: How quickly are you calling these leads? Studies show calling within 5 minutes increases contact rate by 400%. Also, are you using the scripts we provided?' },
-                { q: 'Client wants to cancel', a: 'I hear you, and I want to make sure we find the right solution. Before we discuss cancellation, can you help me understand what specific results you were hoping for?' },
-                { q: 'Client not answering leads', a: 'Try: 1) Call within 5 minutes, 2) Try different times of day, 3) Send a text first, 4) Follow up at least 6-8 times.' },
-                { q: 'CPL is too high', a: 'We can: 1) Review targeting, 2) Test new creative, 3) Adjust budget, 4) Check landing page conversion.' },
-            ];
-
-            const getAIHelp = async () => {
-                if (!situation.trim()) return;
-                setLoading(true);
-                try {
-                    const res = await fetch('https://api.anthropic.com/v1/messages', {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 500,
-                            messages: [{ role: 'user', content: `You're a CSM at a real estate marketing company helping on a live call. Help with: "${situation}". Brief, practical response.` }]
-                        })
-                    });
-                    const data = await res.json();
-                    setResponse(data.content?.[0]?.text || 'Could not generate response.');
-                } catch { setResponse('AI unavailable. Try quick responses below.'); }
-                setLoading(false);
-            };
-
-            return (
-                <div className="space-y-6">
-                    <div className="card p-6">
-                        <h3 className="text-lg font-semibold text-white mb-4">🎧 Live Call Help</h3>
-                        <textarea value={situation} onChange={e => setSituation(e.target.value)} placeholder="Describe the situation..." className="w-full bg-dark-800 border border-dark-700 rounded-xl p-4 text-white min-h-[100px]" />
-                        <button onClick={getAIHelp} disabled={loading || !situation.trim()} className="mt-3 px-6 py-3 bg-gradient-to-r from-brand-cyan to-brand-purple text-white font-semibold rounded-xl disabled:opacity-50">
-                            {loading ? '🤖 Thinking...' : '🤖 Get AI Help'}
-                        </button>
-                        {response && <div className="mt-4 p-4 bg-dark-800 rounded-xl text-sm text-slate-300">{response}</div>}
-                    </div>
-                    <div className="card p-6">
-                        <h4 className="font-semibold text-white mb-4">⚡ Quick Responses</h4>
-                        <div className="space-y-3">
-                            {quickResponses.map((qr, i) => (
-                                <details key={i} className="bg-dark-800 rounded-xl">
-                                    <summary className="p-3 cursor-pointer text-brand-cyan text-sm">{qr.q}</summary>
-                                    <div className="p-3 pt-0 text-sm text-slate-300">{qr.a}</div>
-                                </details>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            );
-        };
-
-        // ========== STRATEGY TAB ==========
-        const StrategyTab = () => (
-            <div className="card p-6">
-                <h3 className="text-lg font-semibold text-white mb-4">🎯 Strategy</h3>
-                <p className="text-slate-400 mb-4">Select a specific client from the Client Success Hub to view and edit their strategy.</p>
-                <a href="index.html" className="inline-block px-6 py-3 bg-brand-cyan text-dark-900 font-semibold rounded-xl">Go to Client Success Hub →</a>
-            </div>
-        );
-
-        // ========== GHL HELP TAB ==========
-        const GHLHelpTab = () => {
-            const guides = [
-                { title: 'How to Check Lead Status', steps: ['Log into GoHighLevel', 'Go to Contacts > Smart Lists', 'Filter by client name', 'Review lead status'] },
-                { title: 'How to Set Up Automations', steps: ['Go to Automation > Workflows', 'Click "Create Workflow"', 'Choose trigger', 'Add actions', 'Test and activate'] },
-                { title: 'Troubleshooting: Leads Not Syncing', steps: ['Check Facebook integration', 'Verify correct form connected', 'Check for errors', 'Re-sync integration'] },
-                { title: 'How to Create a Pipeline', steps: ['Go to Opportunities > Pipelines', 'Click "Add Pipeline"', 'Name it', 'Add stages', 'Save'] },
-            ];
-            return (
-                <div className="space-y-4">
-                    <div className="card p-6"><h3 className="text-lg font-semibold text-white mb-2">⚙️ GoHighLevel Help</h3></div>
-                    {guides.map((guide, i) => (
-                        <details key={i} className="card">
-                            <summary className="p-4 cursor-pointer font-medium text-white">{guide.title}</summary>
-                            <div className="p-4 pt-0 border-t border-dark-700"><ul className="space-y-1">{guide.steps.map((step, j) => <li key={j} className="text-sm text-slate-300">{j+1}. {step}</li>)}</ul></div>
-                        </details>
-                    ))}
-                </div>
-            );
-        };
-
-        // ========== SAVE THE CLIENT TAB ==========
-        const SaveClientTab = ({ clients, setupData }) => {
-            const getSetupInfo = (client) => {
-                const name = client.client.toLowerCase().trim();
-                return setupData.find(s => { const sn = (s.client || '').toLowerCase().trim(); return sn === name || sn.includes(name) || name.includes(sn); });
-            };
-
-            const atRiskClients = clients.filter(c => {
-                const s = getSetupInfo(c);
-                return c.cpl > 50 || (c.leads > 15 && c.appts === 0) || s?.duePayment?.includes('OVERDUE') || s?.redFlags;
-            });
-
-            const playbooks = [
-                { name: 'Payment Overdue', steps: ['Call immediately', 'Ask about service issues', 'Offer payment plan', 'Set deadline', 'Escalate if needed'] },
-                { name: 'High CPL (>$50)', steps: ['Review targeting', 'Check ad creative', 'Review landing page', 'Consider rebuild', 'Offer refresh'] },
-                { name: 'No Appointments', steps: ['Review lead quality', 'Check calling speed', 'Review scripts', 'Listen to recordings', 'Recommend ISA'] },
-                { name: 'Client Wants to Cancel', steps: ['LISTEN first', 'Acknowledge frustration', 'Review wins', 'Propose solutions', 'Offer pause', 'Get manager'] },
-            ];
-
-            return (
-                <div className="space-y-6">
-                    <div className="card p-6">
-                        <h3 className="text-lg font-semibold text-white mb-4">🚨 At-Risk Clients ({atRiskClients.length})</h3>
-                        {atRiskClients.length === 0 ? (
-                            <div className="text-slate-500 text-center py-4">No at-risk clients detected</div>
-                        ) : (
-                            <div className="space-y-2">
-                                {atRiskClients.map(c => {
-                                    const s = getSetupInfo(c);
-                                    const issues = [];
-                                    if (c.cpl > 50) issues.push(`High CPL: ${fmtD(c.cpl)}`);
-                                    if (c.leads > 15 && c.appts === 0) issues.push('No appointments');
-                                    if (s?.duePayment?.includes('OVERDUE')) issues.push('Payment overdue');
-                                    if (s?.redFlags) issues.push(`Red flag: ${s.redFlags}`);
-                                    return (
-                                        <div key={c.client} className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
-                                            <div className="font-medium text-white">{c.client}</div>
-                                            <div className="text-sm text-red-400">{issues.join(' • ')}</div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
-                    </div>
-                    <div className="card p-6">
-                        <h3 className="text-lg font-semibold text-white mb-4">🛟 Intervention Playbooks</h3>
-                        <div className="space-y-4">
-                            {playbooks.map((pb, i) => (
-                                <div key={i} className="p-4 bg-dark-800 rounded-xl">
-                                    <h4 className="font-semibold text-white mb-2">{pb.name}</h4>
-                                    <ul className="space-y-1 text-sm text-slate-300">{pb.steps.map((step, j) => <li key={j}>{j+1}. {step}</li>)}</ul>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            );
-        };
-
-        // ========== WEEKLY UPDATES TAB ==========
-        const WeeklyUpdatesTab = () => (
-            <div className="card p-6">
-                <h3 className="text-lg font-semibold text-white mb-4">📅 Weekly Updates</h3>
-                <p className="text-slate-400 mb-4">Select a specific client from the Client Success Hub to log weekly updates.</p>
-                <a href="index.html" className="inline-block px-6 py-3 bg-brand-cyan text-dark-900 font-semibold rounded-xl">Go to Client Success Hub →</a>
-            </div>
-        );
-
-        // ========== NOTES & ACTIVITY TAB ==========
-        const NotesActivityTab = () => {
-            const { user } = useAuth();
-            const [activities, setActivities] = useState([]);
-
-            useEffect(() => { loadActivities(); }, []);
-
-            const loadActivities = async () => {
-                const { data } = await supabase.from('activity_log').select('*').order('created_at', { ascending: false }).limit(100);
-                if (data) setActivities(data);
-            };
-
-            return (
-                <div className="card p-6">
-                    <h3 className="text-lg font-semibold text-white mb-4">📋 Recent Activity (All Clients)</h3>
-                    {activities.length === 0 ? (
-                        <div className="text-slate-500 text-center py-8">No activity yet</div>
-                    ) : (
-                        <div className="space-y-2 max-h-[500px] overflow-y-auto scrollbar">
-                            {activities.map(a => (
-                                <div key={a.id} className="p-3 bg-dark-800 rounded-lg">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-brand-purple font-medium text-sm">{getDisplayName(a.user_email)}</span>
-                                        <span className="text-slate-600 text-xs">{new Date(a.created_at).toLocaleString()}</span>
-                                    </div>
-                                    <div className="text-slate-400 text-sm">{a.action} • <span className="text-white">{a.client_name}</span></div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            );
-        };
-
         // ========== MAIN APP ==========
         const App = () => {
             const [user, setUser] = useState(null);
             const [authLoading, setAuthLoading] = useState(true);
             const [clients, setClients] = useState([]);
             const [setupData, setSetupData] = useState([]);
-            const [tab, setTab] = useState('overview');
             const [loading, setLoading] = useState(true);
 
             useEffect(() => {
@@ -482,22 +253,10 @@
                 window.location.href = `index.html?client=${encodeURIComponent(clientName)}`;
             };
 
-            if (authLoading || loading) return <div className="min-h-screen flex items-center justify-center text-4xl">⏳</div>;
+            // FIXED: Check auth first, then show login, then check data loading
+            if (authLoading) return <div className="min-h-screen flex items-center justify-center text-4xl">⏳</div>;
             if (!user) return <LoginPage onLogin={setUser} />;
-
-            const renderTab = () => {
-                switch (tab) {
-                    case 'overview': return <AllClientsTab clients={clients} setupData={setupData} onClientClick={handleClientClick} />;
-                    case 'scripts': return <CallScriptsTab />;
-                    case 'livehelp': return <LiveCallHelpTab />;
-                    case 'strategy': return <StrategyTab />;
-                    case 'ghl': return <GHLHelpTab />;
-                    case 'save': return <SaveClientTab clients={clients} setupData={setupData} />;
-                    case 'weekly': return <WeeklyUpdatesTab />;
-                    case 'notes': return <NotesActivityTab />;
-                    default: return <AllClientsTab clients={clients} setupData={setupData} onClientClick={handleClientClick} />;
-                }
-            };
+            if (loading) return <div className="min-h-screen flex items-center justify-center text-4xl">⏳</div>;
 
             return (
                 <AuthContext.Provider value={{ user }}>
@@ -508,12 +267,10 @@
                                 <div className="flex items-center gap-2 mt-2"><div className="w-2 h-2 bg-emerald-500 rounded-full"></div><span className="text-xs text-slate-400">{getDisplayName(user.email)}</span></div>
                             </div>
                             <nav className="flex-1 py-2 overflow-y-auto scrollbar">
-                                {tabs.map(t => (
-                                    <button key={t.id} onClick={() => setTab(t.id)} className={`w-full flex items-start gap-3 px-5 py-3 text-left ${tab === t.id ? 'tab-active text-white' : 'text-slate-400 hover:text-white hover:bg-dark-800'}`}>
-                                        <span className="text-lg">{t.icon}</span>
-                                        <div><div className="text-sm font-medium">{t.name}</div><div className="text-xs text-slate-500">{t.desc}</div></div>
-                                    </button>
-                                ))}
+                                <button className="w-full flex items-start gap-3 px-5 py-3 text-left tab-active text-white">
+                                    <span className="text-lg">📊</span>
+                                    <div><div className="text-sm font-medium">All Clients</div><div className="text-xs text-slate-500">Overview of all client metrics</div></div>
+                                </button>
                                 <div className="px-4 pt-4 pb-2 space-y-2">
                                     <a href="index.html" className="block w-full text-center py-2 bg-dark-800 hover:bg-dark-700 text-slate-300 rounded-lg text-sm">→ Client Success Hub</a>
                                     <button onClick={() => supabase.auth.signOut()} className="w-full py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg text-sm">Logout</button>
@@ -525,7 +282,9 @@
                                 <h2 className="text-xl font-bold text-white">Media Buyer Overview</h2>
                                 <p className="text-slate-400 text-sm">All clients at a glance • Click any client to view details</p>
                             </header>
-                            <div className="flex-1 overflow-y-auto p-8 scrollbar">{renderTab()}</div>
+                            <div className="flex-1 overflow-y-auto p-8 scrollbar">
+                                <AllClientsView clients={clients} setupData={setupData} onClientClick={handleClientClick} />
+                            </div>
                         </main>
                     </div>
                 </AuthContext.Provider>
