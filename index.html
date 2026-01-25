@@ -507,18 +507,42 @@
 
         // ========== CALL SCRIPTS TAB ==========
         const CallScriptsTab = ({ c, s }) => {
+            const clientName = c?.client || '[Client]';
+            const totalLeads = c?.leads || 'X';
+            const cplValue = fmtD(c?.cpl || 0);
+            const sellerLeadsVal = c?.sellerLeads || 'X';
+            const buyerLeadsVal = c?.buyerLeads || 'X';
+            const apptsVal = c?.appts || 'X';
+            const convRate = fmtP(c?.sellerLeadToAppt || 0);
+
             const scripts = [
-                { name: 'Check-In Call', icon: '📞', content: `Hi ${c?.client || '[Client]'}, this is [Your Name] from Veriad Marketing! How are you doing today?\n\n[Wait for response]\n\nGreat! I wanted to check in and see how things are going with your leads. Have you been able to connect with any of them this week?\n\n[Listen and take notes]\n\nThat's great to hear! Let me pull up your account... I can see you've gotten ${c?.leads || 'X'} leads so far with a CPL of ${fmtD(c?.cpl || 0)}.\n\n[If good CPL]: Your cost per lead is looking really solid!\n[If high CPL]: I noticed your CPL is a bit higher than we'd like. Let me look into optimizing your campaigns.\n\nAny questions for me?` },
-                { name: 'Concern/Complaint Call', icon: '😟', content: `Hi ${c?.client || '[Client]'}, thank you for reaching out. I understand you have some concerns and I want to make sure we address them properly.\n\nCan you tell me more about what's been happening?\n\n[Listen carefully, don't interrupt]\n\nI really appreciate you sharing that with me. I can understand how that would be frustrating.\n\nHere's what I'd like to do:\n1. [Immediate action you can take]\n2. [Follow-up action]\n3. [Timeline for resolution]\n\nDoes that sound like a good plan?` },
-                { name: 'Lead Quality Issue', icon: '🎯', content: `Hi ${c?.client || '[Client]'}, I wanted to follow up on the lead quality feedback you shared.\n\nI've reviewed your recent leads and here's what I found:\n- Total leads: ${c?.leads || 'X'}\n- Seller leads: ${c?.sellerLeads || 'X'}\n- Buyer leads: ${c?.buyerLeads || 'X'}\n\nA few questions to help me optimize:\n1. What percentage of leads are answering when you call?\n2. Are they motivated sellers/buyers?\n3. What's your typical follow-up process?\n\n[Based on answers, suggest optimization]` },
-                { name: 'Upsell/Expansion', icon: '📈', content: `Hi ${c?.client || '[Client]'}, I've been looking at your results and I'm really impressed!\n\nYou've generated ${c?.leads || 'X'} leads and ${c?.appts || 'X'} appointments. That's a ${fmtP(c?.sellerLeadToAppt || 0)} conversion rate!\n\nI wanted to discuss an opportunity to scale your success. Have you considered:\n- Adding buyer leads to your campaign?\n- Expanding to additional zip codes?\n- Increasing your daily budget?\n\nWhat do you think would help you close more deals?` },
+                { 
+                    name: 'Check-In Call', 
+                    icon: '📞', 
+                    content: 'Hi ' + clientName + ', this is [Your Name] from Veriad Marketing! How are you doing today?\n\n[Wait for response]\n\nGreat! I wanted to check in and see how things are going with your leads. Have you been able to connect with any of them this week?\n\n[Listen and take notes]\n\nThat\'s great to hear! Let me pull up your account... I can see you\'ve gotten ' + totalLeads + ' leads so far with a CPL of ' + cplValue + '.\n\n[If good CPL]: Your cost per lead is looking really solid!\n[If high CPL]: I noticed your CPL is a bit higher than we\'d like. Let me look into optimizing your campaigns.\n\nAny questions for me?' 
+                },
+                { 
+                    name: 'Concern/Complaint Call', 
+                    icon: '😟', 
+                    content: 'Hi ' + clientName + ', thank you for reaching out. I understand you have some concerns and I want to make sure we address them properly.\n\nCan you tell me more about what\'s been happening?\n\n[Listen carefully, don\'t interrupt]\n\nI really appreciate you sharing that with me. I can understand how that would be frustrating.\n\nHere\'s what I\'d like to do:\n1. [Immediate action you can take]\n2. [Follow-up action]\n3. [Timeline for resolution]\n\nDoes that sound like a good plan?' 
+                },
+                { 
+                    name: 'Lead Quality Issue', 
+                    icon: '🎯', 
+                    content: 'Hi ' + clientName + ', I wanted to follow up on the lead quality feedback you shared.\n\nI\'ve reviewed your recent leads and here\'s what I found:\n- Total leads: ' + totalLeads + '\n- Seller leads: ' + sellerLeadsVal + '\n- Buyer leads: ' + buyerLeadsVal + '\n\nA few questions to help me optimize:\n1. What percentage of leads are answering when you call?\n2. Are they motivated sellers/buyers?\n3. What\'s your typical follow-up process?\n\n[Based on answers, suggest optimization]' 
+                },
+                { 
+                    name: 'Upsell/Expansion', 
+                    icon: '📈', 
+                    content: 'Hi ' + clientName + ', I\'ve been looking at your results and I\'m really impressed!\n\nYou\'ve generated ' + totalLeads + ' leads and ' + apptsVal + ' appointments. That\'s a ' + convRate + ' conversion rate!\n\nI wanted to discuss an opportunity to scale your success. Have you considered:\n- Adding buyer leads to your campaign?\n- Expanding to additional zip codes?\n- Increasing your daily budget?\n\nWhat do you think would help you close more deals?' 
+                },
             ];
 
             return (
                 <div className="space-y-4">
                     <div className="card p-6">
                         <h3 className="text-lg font-semibold text-white mb-2">📞 Call Scripts</h3>
-                        <p className="text-slate-400 text-sm">Phone scripts customized for {c?.client || 'your client'}. Click to expand.</p>
+                        <p className="text-slate-400 text-sm">Phone scripts customized for {clientName}. Click to expand.</p>
                     </div>
                     {scripts.map((script, i) => (
                         <details key={i} className="card">
@@ -542,26 +566,29 @@
             const [response, setResponse] = useState('');
             const [loading, setLoading] = useState(false);
 
+            const cplText = 'Your CPL is ' + fmtD(c?.cpl || 0) + '. We can: 1) Review targeting, 2) Test new creative, 3) Adjust budget, 4) Check landing page.';
+
             const quickResponses = [
                 { q: 'Client says leads are bad', a: 'I understand your concern. Let me ask: How quickly are you calling these leads? Studies show calling within 5 minutes increases contact rate by 400%. Also, are you using the scripts we provided?' },
                 { q: 'Client wants to cancel', a: 'I hear you, and I want to make sure we find the right solution. Before we discuss cancellation, can you help me understand what specific results you were hoping for?' },
                 { q: 'Client not answering leads', a: 'Try: 1) Call within 5 minutes, 2) Try different times of day, 3) Send a text first, 4) Follow up at least 6-8 times.' },
-                { q: 'CPL is too high', a: `Your CPL is ${fmtD(c?.cpl || 0)}. We can: 1) Review targeting, 2) Test new creative, 3) Adjust budget, 4) Check landing page.` },
+                { q: 'CPL is too high', a: cplText },
             ];
 
             const getAIHelp = async () => {
                 if (!situation.trim()) return;
                 setLoading(true);
                 try {
+                    const promptText = 'You are a CSM helping on a live call. Client: ' + (c?.client || 'Unknown') + ', ' + (c?.leads || 0) + ' leads, ' + fmtD(c?.cpl || 0) + ' CPL, ' + (c?.appts || 0) + ' appts. Help with: "' + situation + '". Brief, practical response.';
                     const res = await fetch('https://api.anthropic.com/v1/messages', {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 500,
-                            messages: [{ role: 'user', content: `You're a CSM helping on a live call. Client: ${c?.client}, ${c?.leads} leads, ${fmtD(c?.cpl)} CPL, ${c?.appts} appts. Help with: "${situation}". Brief, practical response.` }]
+                            messages: [{ role: 'user', content: promptText }]
                         })
                     });
                     const data = await res.json();
                     setResponse(data.content?.[0]?.text || 'Could not generate response.');
-                } catch { setResponse('AI unavailable. Try quick responses below.'); }
+                } catch (err) { setResponse('AI unavailable. Try quick responses below.'); }
                 setLoading(false);
             };
 
@@ -619,9 +646,9 @@
             };
 
             const detectedIssues = [];
-            if (c?.cpl > 40) detectedIssues.push({ icon: '📈', text: `High CPL (${fmtD(c.cpl)})` });
+            if (c?.cpl > 40) detectedIssues.push({ icon: '📈', text: 'High CPL (' + fmtD(c.cpl) + ')' });
             if (c?.appts7 === 0 && c?.days > 14) detectedIssues.push({ icon: '📅', text: 'No appointments this week' });
-            if (c?.leads > 20 && c?.appts === 0) detectedIssues.push({ icon: '📞', text: `${c.leads} leads but 0 appts` });
+            if (c?.leads > 20 && c?.appts === 0) detectedIssues.push({ icon: '📞', text: c.leads + ' leads but 0 appts' });
 
             if (!c) return <div className="card p-12 text-center text-slate-500">Select a client</div>;
 
@@ -722,15 +749,16 @@
             const processTranscript = async () => {
                 setProcessing(true);
                 try {
+                    const promptContent = 'Summarize this meeting for ' + (c?.client || 'client') + '. Return JSON: {summary, clientSentiment, keyPoints[], actionItems[{task,owner}], riskLevel}\n\n' + transcript;
                     const res = await fetch('https://api.anthropic.com/v1/messages', {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 1000,
-                            messages: [{ role: 'user', content: `Summarize this meeting for ${c?.client}. Return JSON: {summary, clientSentiment, keyPoints[], actionItems[{task,owner}], riskLevel}\n\n${transcript}` }]
+                            messages: [{ role: 'user', content: promptContent }]
                         })
                     });
                     const data = await res.json();
                     setSummary(JSON.parse(data.content?.[0]?.text || '{}'));
-                } catch { setSummary({ summary: 'Transcript saved.', keyPoints: [], actionItems: [], riskLevel: 'medium' }); }
+                } catch (err) { setSummary({ summary: 'Transcript saved.', keyPoints: [], actionItems: [], riskLevel: 'medium' }); }
                 setProcessing(false);
             };
 
