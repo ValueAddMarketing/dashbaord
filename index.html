@@ -46,7 +46,7 @@
         const useAuth = () => useContext(AuthContext);
 
         const URLS = {
-            clients: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRimOKUGksj-OVBSCpb9UGnkQU3Wu547GpcaUk4RT0oo5KM0fnVo2sk8mRpy4cwO5j9CckDORzmou-d/pub?gid=133498635&single=true&output=csv',
+            clientAdsPerformance: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR4LTw-15NE0j25eIOpY_bTPSAipW7-F2eXnL0xtdXMWCZtK9z3MYWxHr6ltnMChLk-YDLzwiXAfvwE/pub?gid=964722332&single=true&output=csv',
             setupTiming: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR4LTw-15NE0j25eIOpY_bTPSAipW7-F2eXnL0xtdXMWCZtK9z3MYWxHr6ltnMChLk-YDLzwiXAfvwE/pub?gid=646836237&single=true&output=csv'
         };
 
@@ -64,20 +64,75 @@
             return email ? email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Unknown';
         };
 
-        // Full client mapping from Media Buying sheet
+        // Map Client Ads Performance sheet - headers in row 2 (A2:BA2)
         const mapClient = r => ({
-            client: r['Client']||'', adAccount: r['Ad Account Name']||'', state: r['State']||'', 
-            campaign: r['CAMPAIGN']||'', callingStatus: r['Calling/Non-calling']||'', startDate: r['Start Date']||'',
-            days: pn(r['Days Running']), weeks: pn(r['Weeks Running']), months: pn(r['Months Running']),
-            spend: pn(r['Total Ad Spend']), sellerSpend: pn(r['Seller Ad Spend']), buyerSpend: pn(r['Buyer Ad Spend']),
-            dailyBudget: pn(r['Daily Ad Spend Budget']), spendPerDay: pn(r['Ad Spend Per Day']),
-            leads: pn(r['Total Leads']), cpl: pn(r['Cost Per Lead']),
-            sellerLeads: pn(r['Seller Leads']), sellerCPL: pn(r['Cost Per Seller Lead']), sellerLeadsWeek: pn(r['Seller Leads/Week']),
-            buyerLeads: pn(r['Buyer Leads']), listingLeads: pn(r['Listing Leads']),
-            appts: pn(r['Total Appts']), apptsWeek: pn(r['Appt per Week']), appts7: pn(r['Appts in the Last 7 Days']),
-            sellerAppts: pn(r['Seller Appts']), sellerLeadToAppt: pn(r['Seller Lead > Appt']), sellerApptCost: pn(r['Cost per Seller Appts']),
-            buyerAppts: pn(r['Buyer Appts']), buyerApptCost: pn(r['Cost per Buyer Appt']),
-            deals: pn(r['Potential Deals']), listings: pn(r['Listing']), buyerSigned: pn(r['Buyer Signed']), leadsPerListing: pn(r['Leads/Listing'])
+            client: r['Client']||'', 
+            adAccount: r['Ad Account Name']||'',
+            dailySetAdSpend: pn(r['Daily Set Ad Spend']),
+            state: r['State']||'', 
+            campaign: r['CAMPAIGN']||'',
+            callingStatus: r['Calling/Non-calling']||'',
+            startDate: r['CORRECT SETUP TIMING START DATE']||r['OLD Start Date']||'',
+            leadySync: r['Leady Sync']||'',
+            months: pn(r['Months Running']),
+            weeks: pn(r['Weeks Running']),
+            days: pn(r['Days Running']),
+            spend: pn(r['Total Ad Spend']), 
+            spendPerMonth: pn(r['Ad Spend Per Month']),
+            spendPerDay: pn(r['Ad Spend Per Day']),
+            // Last 3 Days - Seller
+            last3DaySellerLeads: pn(r['Last 3 Day Seller Leads']),
+            last3DaySellerSpend: pn(r['Last 3 Days Seller Ad Spend']),
+            last3DaySellerCPL: pn(r['Last 3 Days Seller CPL']),
+            // Last 7 Days - Seller
+            last7DaySellerLeads: pn(r['Last 7 Day Seller Leads']),
+            last7DaySellerSpend: pn(r['Last 7 Day Seller Spend']),
+            last7DaySellerCPL: pn(r['Last 7 Days Seller CPL']),
+            // Lifetime - Seller
+            sellerLeads: pn(r['Lifetime Seller Leads']),
+            sellerSpend: pn(r['Lifetime Seller Ad Spend']),
+            sellerCPL: pn(r['Lifetime Seller CPL']),
+            // Last 3 Days - Buyer
+            last3DayBuyerLeads: pn(r['Last 3 Day Buyer Leads']),
+            last3DayBuyerSpend: pn(r['Last 3 Days Buyer Ad Spend']),
+            last3DayBuyerCPL: pn(r['Last 3 Days Buyer CPL']),
+            // Last 7 Days - Buyer
+            last7DayBuyerLeads: pn(r['Last 7 Day Buyer Leads']),
+            last7DayBuyerSpend: pn(r['Last 7 Day Buyer Spend']),
+            last7DayBuyerCPL: pn(r['Last 7 Days Buyer CPL']),
+            // Lifetime - Buyer
+            buyerLeads: pn(r['Lifetime Buyer Leads']),
+            buyerSpend: pn(r['Lifetime Buyer Ad Spend']),
+            buyerCPL: pn(r['Lifetime Buyer CPL']),
+            // Other lead types
+            listingLeads: pn(r['Listing Leads']),
+            mortgageLeads: pn(r['Mortgage Leads']),
+            agentAttraction: pn(r['Agent Attraction']),
+            // Appointments
+            appts: pn(r['Total Appts (Seller + Buyers)']),
+            sellerAppts: pn(r['Total Seller Appts']),
+            sellerAppts7: pn(r['Seller Appts in the Last 7 Days']),
+            avgSellerApptsWeek: pn(r['Avg Seller Appts per Week']),
+            sellerLeadToAppt: pn(r['Seller Lead To Appt Ratio']),
+            costPerSellerAppt: pn(r['Total Ad Spend Cost Per Seller Appts']),
+            buyerAppts: pn(r['Total Buyer Appts']),
+            buyerAppts7: pn(r['Buyer Appts in the Last 7 Days']),
+            avgBuyerApptsWeek: pn(r['Avg Buyer Appts per Week']),
+            buyerLeadToAppt: pn(r['Buyer Lead To Appt Ratio']),
+            costPerBuyerAppt: pn(r['Ad Spend Cost Per Buyer Appts']),
+            // Deals
+            deals: pn(r['Potential Deals']),
+            listings: pn(r['Listing']),
+            buyerSigned: pn(r['Buyer Signed']),
+            leadsPerListing: pn(r['Leads/Listing']),
+            leadsPerDeal: pn(r['Leads/Potential Deal']),
+            leadsPerSignedBuyer: pn(r['Leads/Signed Buyer']),
+            // Computed
+            get leads() { return this.sellerLeads + this.buyerLeads + this.listingLeads; },
+            get cpl() { return this.leads > 0 ? this.spend / this.leads : 0; },
+            get appts7() { return this.sellerAppts7 + this.buyerAppts7; },
+            get last3DayLeads() { return this.last3DaySellerLeads + this.last3DayBuyerLeads; },
+            get last7DayLeads() { return this.last7DaySellerLeads + this.last7DayBuyerLeads; }
         });
 
         // Full setup timing mapping
@@ -245,8 +300,43 @@
         );
 
         // ========== CLIENT HEALTH TAB - FULL DETAILS ==========
-        const ClientHealthTab = ({ c, s }) => {
-            if (!c) return <div className="card p-12 text-center text-slate-500">Select a client to view details</div>;
+        const ClientHealthTab = ({ c, s, isMissingFromAdsSheet }) => {
+            if (!c && !isMissingFromAdsSheet) return <div className="card p-12 text-center text-slate-500">Select a client to view details</div>;
+            
+            // If client is missing from Ads Performance sheet
+            if (isMissingFromAdsSheet) {
+                return (
+                    <div className="space-y-6">
+                        <div className="card p-8 border-l-4 border-purple-500">
+                            <div className="flex items-center gap-4 mb-4">
+                                <span className="text-4xl">📋</span>
+                                <div>
+                                    <h3 className="text-xl font-bold text-purple-400">Missing from Client Ads Performance Sheet</h3>
+                                    <p className="text-slate-400">This client needs to be added to the Client Ads Performance tracking sheet.</p>
+                                </div>
+                            </div>
+                            <div className="bg-purple-500/10 rounded-xl p-4 mt-4">
+                                <p className="text-white font-medium mb-2">Action Required:</p>
+                                <ol className="text-slate-300 space-y-1 text-sm">
+                                    <li>1. Open the Client Ads Performance Google Sheet</li>
+                                    <li>2. Add a new row for this client</li>
+                                    <li>3. Fill in their ad account details and metrics</li>
+                                    <li>4. Refresh this dashboard to see their data</li>
+                                </ol>
+                            </div>
+                        </div>
+                        {s && (
+                            <Section title="📋 Available Info from Setup Timing">
+                                <DataRow label="CSM Rep" value={s?.csmRep} highlight color="text-brand-purple"/>
+                                <DataRow label="Status" value={s?.status}/>
+                                <DataRow label="MRR" value={s?.mrr} highlight color="text-emerald-400"/>
+                                <DataRow label="Due Payment" value={s?.duePayment}/>
+                            </Section>
+                        )}
+                    </div>
+                );
+            }
+
             const score = getHealthScore(c, s);
             const color = getHealthColor(score);
 
@@ -260,9 +350,28 @@
                         <div className="card p-4 border-l-4 border-brand-purple"><div className="text-2xl font-bold text-brand-purple">{fmtN(c.appts)}</div><div className="text-xs text-slate-400">Appointments</div></div>
                     </div>
 
+                    {/* Last 3 Days / Last 7 Days Performance */}
+                    <div className="grid md:grid-cols-2 gap-6">
+                        <div className="card p-5 border-l-4 border-amber-500">
+                            <div className="section-title">📊 Last 3 Days</div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div><div className="text-2xl font-bold text-white">{fmtN(c.last3DaySellerLeads + c.last3DayBuyerLeads)}</div><div className="text-xs text-slate-400">Leads</div></div>
+                                <div><div className="text-2xl font-bold text-brand-cyan">{fmtD(c.last3DaySellerCPL || c.last3DayBuyerCPL || 0)}</div><div className="text-xs text-slate-400">CPL</div></div>
+                            </div>
+                        </div>
+                        <div className="card p-5 border-l-4 border-brand-cyan">
+                            <div className="section-title">📈 Last 7 Days</div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div><div className="text-2xl font-bold text-white">{fmtN(c.last7DaySellerLeads + c.last7DayBuyerLeads)}</div><div className="text-xs text-slate-400">Leads</div></div>
+                                <div><div className="text-2xl font-bold text-brand-cyan">{fmtD(c.last7DaySellerCPL || c.last7DayBuyerCPL || 0)}</div><div className="text-xs text-slate-400">CPL</div></div>
+                            </div>
+                        </div>
+                    </div>
+
                     {/* Alerts */}
-                    {(s?.duePayment?.includes('OVERDUE') || s?.redFlags || s?.unresolvedConcerns) && (
+                    {(s?.duePayment?.includes('OVERDUE') || s?.redFlags || s?.unresolvedConcerns || (c.last3DaySellerLeads + c.last3DayBuyerLeads === 0 && c.days >= 3)) && (
                         <div className="space-y-2">
+                            {(c.last3DaySellerLeads + c.last3DayBuyerLeads === 0 && c.days >= 3) && <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20"><span className="text-amber-400 font-semibold">⚠️ NO LEADS IN LAST 3 DAYS</span> <span className="text-slate-300 ml-2">Check ad account status</span></div>}
                             {s?.duePayment?.includes('OVERDUE') && <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20"><span className="text-red-400 font-semibold">💳 PAYMENT OVERDUE</span></div>}
                             {s?.redFlags && <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20"><span className="text-red-400 font-semibold">🚩 Red Flags:</span> <span className="text-slate-300 ml-2">{s.redFlags}</span></div>}
                             {s?.unresolvedConcerns && <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20"><span className="text-amber-400 font-semibold">⚠️ Concerns:</span> <span className="text-slate-300 ml-2">{s.unresolvedConcerns}</span></div>}
@@ -304,9 +413,71 @@
                         </div>
                     </Section>
 
-                    {/* Performance */}
+                    {/* Seller Performance */}
+                    <Section title="🏠 Seller Performance" cols={2}>
+                        <DataRow label="Lifetime Seller Leads" value={fmtN(c.sellerLeads)} highlight color="text-brand-cyan"/>
+                        <DataRow label="Lifetime Seller CPL" value={fmtD(c.sellerCPL)} highlight/>
+                        <DataRow label="Last 7 Day Seller Leads" value={fmtN(c.last7DaySellerLeads)}/>
+                        <DataRow label="Last 7 Day Seller CPL" value={fmtD(c.last7DaySellerCPL)}/>
+                        <DataRow label="Last 3 Day Seller Leads" value={fmtN(c.last3DaySellerLeads)}/>
+                        <DataRow label="Last 3 Day Seller CPL" value={fmtD(c.last3DaySellerCPL)}/>
+                        <DataRow label="Seller Appts (Total)" value={fmtN(c.sellerAppts)} highlight color="text-brand-purple"/>
+                        <DataRow label="Seller Appts (7 Days)" value={fmtN(c.sellerAppts7)}/>
+                        <DataRow label="Avg Seller Appts/Week" value={c.avgSellerApptsWeek?.toFixed(1)}/>
+                        <DataRow label="Seller Lead→Appt Ratio" value={fmtP(c.sellerLeadToAppt)}/>
+                        <DataRow label="Cost Per Seller Appt" value={fmtD(c.costPerSellerAppt)}/>
+                    </Section>
+
+                    {/* Buyer Performance */}
+                    <Section title="🛒 Buyer Performance" cols={2}>
+                        <DataRow label="Lifetime Buyer Leads" value={fmtN(c.buyerLeads)} highlight color="text-brand-cyan"/>
+                        <DataRow label="Lifetime Buyer CPL" value={fmtD(c.buyerCPL)} highlight/>
+                        <DataRow label="Last 7 Day Buyer Leads" value={fmtN(c.last7DayBuyerLeads)}/>
+                        <DataRow label="Last 7 Day Buyer CPL" value={fmtD(c.last7DayBuyerCPL)}/>
+                        <DataRow label="Last 3 Day Buyer Leads" value={fmtN(c.last3DayBuyerLeads)}/>
+                        <DataRow label="Last 3 Day Buyer CPL" value={fmtD(c.last3DayBuyerCPL)}/>
+                        <DataRow label="Buyer Appts (Total)" value={fmtN(c.buyerAppts)} highlight color="text-brand-purple"/>
+                        <DataRow label="Buyer Appts (7 Days)" value={fmtN(c.buyerAppts7)}/>
+                        <DataRow label="Avg Buyer Appts/Week" value={c.avgBuyerApptsWeek?.toFixed(1)}/>
+                        <DataRow label="Buyer Lead→Appt Ratio" value={fmtP(c.buyerLeadToAppt)}/>
+                        <DataRow label="Cost Per Buyer Appt" value={fmtD(c.costPerBuyerAppt)}/>
+                    </Section>
+
+                    {/* Other Leads & Deals */}
                     <div className="grid lg:grid-cols-2 gap-6">
-                        <Section title="📊 Performance">
+                        <Section title="📊 Other Leads">
+                            <DataRow label="Listing Leads" value={fmtN(c.listingLeads)} highlight/>
+                            <DataRow label="Mortgage Leads" value={fmtN(c.mortgageLeads)}/>
+                            <DataRow label="Agent Attraction" value={fmtN(c.agentAttraction)}/>
+                        </Section>
+
+                        <Section title="🎯 Deals & Conversions">
+                            <DataRow label="Potential Deals" value={fmtN(c.deals)} highlight color="text-emerald-400"/>
+                            <DataRow label="Listings" value={fmtN(c.listings)} highlight color="text-amber-400"/>
+                            <DataRow label="Buyer Signed" value={fmtN(c.buyerSigned)} highlight color="text-emerald-400"/>
+                            <DataRow label="Leads/Listing" value={c.leadsPerListing?.toFixed(1)}/>
+                            <DataRow label="Leads/Potential Deal" value={c.leadsPerDeal?.toFixed(1)}/>
+                            <DataRow label="Leads/Signed Buyer" value={c.leadsPerSignedBuyer?.toFixed(1)}/>
+                        </Section>
+                    </div>
+
+                    {/* Ad Account Info */}
+                    <Section title="📢 Ad Account & Spend" cols={2}>
+                        <DataRow label="Ad Account" value={c.adAccount} highlight/>
+                        <DataRow label="Daily Set Ad Spend" value={fmtD(c.dailySetAdSpend)}/>
+                        <DataRow label="Total Ad Spend" value={fmt(c.spend)} highlight color="text-brand-cyan"/>
+                        <DataRow label="Ad Spend Per Month" value={fmt(c.spendPerMonth)}/>
+                        <DataRow label="Ad Spend Per Day" value={fmtD(c.spendPerDay)}/>
+                        <DataRow label="Days Running" value={c.days}/>
+                        <DataRow label="Weeks Running" value={c.weeks}/>
+                        <DataRow label="Months Running" value={c.months}/>
+                        <DataRow label="Calling Status" value={c.callingStatus}/>
+                        <DataRow label="Leady Sync" value={c.leadySync}/>
+                    </Section>
+
+                    {/* Performance from Setup Timing */}
+                    <div className="grid lg:grid-cols-2 gap-6">
+                        <Section title="📊 Performance (Setup Timing)">
                             <DataRow label="Closings" value={s?.closings} highlight color="text-emerald-400"/>
                             <DataRow label="Signed" value={s?.signed} highlight color="text-emerald-400"/>
                             <DataRow label="SHU%" value={s?.shuPercent}/>
@@ -314,7 +485,7 @@
                             <DataRow label="Missing" value={s?.missing}/>
                         </Section>
 
-                        <Section title="📞 Calling & Leads">
+                        <Section title="📞 Calling & Leads (Setup Timing)">
                             <DataRow label="Calling" value={s?.calling}/>
                             <DataRow label="Dialer" value={s?.dialer}/>
                             <DataRow label="S Leads" value={s?.sLeads} highlight color="text-brand-cyan"/>
@@ -323,92 +494,6 @@
                             <DataRow label="CPA" value={s?.cpa}/>
                         </Section>
                     </div>
-
-                    {/* Onboarding & Ads */}
-                    <div className="grid lg:grid-cols-2 gap-6">
-                        <Section title="🎯 Onboarding">
-                            <DataRow label="Stage on CRM" value={s?.stageOnCrm}/>
-                            <DataRow label="Timezone" value={s?.timezone}/>
-                            <DataRow label="Onboarding Rep" value={s?.onboardingRep}/>
-                            <DataRow label="Red Flags" value={s?.redFlags} highlight color="text-red-400"/>
-                            <DataRow label="CRM Fees" value={s?.crmFees}/>
-                            <DataRow label="Ad Spend Fees" value={s?.adSpendFees}/>
-                            <DataRow label="Responsiveness" value={s?.responsiveness}/>
-                            <DataRow label="Lead Gen Exp" value={s?.leadGenExp}/>
-                        </Section>
-
-                        <Section title="📢 Ads & Targeting">
-                            <DataRow label="Ad Account" value={s?.adAccountName || c.adAccount}/>
-                            <DataRow label="Ad Spend" value={s?.adSpend} highlight color="text-brand-cyan"/>
-                            <DataRow label="City" value={s?.city}/>
-                            <DataRow label="Radius" value={s?.radius}/>
-                            <DataRow label="Target" value={s?.target}/>
-                            <DataRow label="Launch" value={s?.launch}/>
-                            <DataRow label="Ads Rep" value={s?.adsRep}/>
-                            <DataRow label="Ads On Pause Days" value={s?.adsOnPauseDays}/>
-                        </Section>
-                    </div>
-
-                    {/* Client Profile & Billing */}
-                    <div className="grid lg:grid-cols-2 gap-6">
-                        <Section title="🧠 Client Profile">
-                            <DataRow label="Personality" value={s?.personality}/>
-                            <DataRow label="Expectations" value={s?.expectations}/>
-                            <DataRow label="Calling Expectations" value={s?.callingExpectations}/>
-                            <DataRow label="Readiness" value={s?.readiness}/>
-                            <DataRow label="Unresolved Concerns" value={s?.unresolvedConcerns} highlight color="text-amber-400"/>
-                            <DataRow label="First Check-in" value={s?.firstCheckin}/>
-                            <DataRow label="First CSM" value={s?.firstCsm}/>
-                        </Section>
-
-                        <Section title="💳 Billing & Contract">
-                            <DataRow label="Revenue Contracted" value={s?.revenueContracted} highlight color="text-emerald-400"/>
-                            <DataRow label="Contract Length" value={s?.contractLength}/>
-                            <DataRow label="Billing Cycle" value={s?.billingCycle}/>
-                            <DataRow label="Free Trial Days" value={s?.freeTrialDays}/>
-                            <DataRow label="Mo Payments Collected" value={s?.moPaymentsCollected}/>
-                            <DataRow label="Billing Adjust" value={s?.billingAdjust}/>
-                            <DataRow label="Platform" value={s?.platform}/>
-                            <DataRow label="Amount Collected" value={s?.amountCollected} highlight color="text-emerald-400"/>
-                        </Section>
-                    </div>
-
-                    {/* Sales & Commission */}
-                    <Section title="💼 Sales & Commission" cols={2}>
-                        <DataRow label="Closed On" value={s?.closedOn}/>
-                        <DataRow label="Commission" value={s?.commission}/>
-                        <DataRow label="Setter & Closer" value={s?.setterCloser}/>
-                        <DataRow label="B2B" value={s?.b2b}/>
-                        <DataRow label="Contract Notes" value={s?.contractNotes}/>
-                        <DataRow label="Payment Notes" value={s?.paymentNotes}/>
-                    </Section>
-
-                    {/* Media Buying Performance */}
-                    <Section title="📈 Media Buying Performance" cols={2}>
-                        <DataRow label="Days Running" value={c.days}/>
-                        <DataRow label="Weeks Running" value={c.weeks}/>
-                        <DataRow label="Daily Budget" value={fmtD(c.dailyBudget)}/>
-                        <DataRow label="Spend Per Day" value={fmtD(c.spendPerDay)}/>
-                        <DataRow label="Seller Leads" value={fmtN(c.sellerLeads)}/>
-                        <DataRow label="Seller CPL" value={fmtD(c.sellerCPL)}/>
-                        <DataRow label="Seller Leads/Week" value={c.sellerLeadsWeek.toFixed(1)}/>
-                        <DataRow label="Buyer Leads" value={fmtN(c.buyerLeads)}/>
-                        <DataRow label="Listing Leads" value={fmtN(c.listingLeads)}/>
-                        <DataRow label="Appts Last 7 Days" value={c.appts7}/>
-                        <DataRow label="Appts/Week" value={c.apptsWeek.toFixed(1)}/>
-                        <DataRow label="Seller Appts" value={fmtN(c.sellerAppts)}/>
-                        <DataRow label="Buyer Appts" value={fmtN(c.buyerAppts)}/>
-                        <DataRow label="Seller Lead→Appt" value={fmtP(c.sellerLeadToAppt)}/>
-                        <DataRow label="Cost/Seller Appt" value={fmtD(c.sellerApptCost)}/>
-                        <DataRow label="Cost/Buyer Appt" value={fmtD(c.buyerApptCost)}/>
-                        <DataRow label="Potential Deals" value={fmtN(c.deals)} highlight color="text-emerald-400"/>
-                        <DataRow label="Listings" value={fmtN(c.listings)} highlight color="text-amber-400"/>
-                        <DataRow label="Buyer Signed" value={fmtN(c.buyerSigned)}/>
-                        <DataRow label="Leads/Listing" value={c.leadsPerListing.toFixed(1)}/>
-                    </Section>
-                </div>
-            );
-        };
 
         // ========== CALL SCRIPTS TAB ==========
         const CallScriptsTab = ({ c, s }) => {
@@ -771,8 +856,17 @@
                 const params = new URLSearchParams(window.location.search);
                 const clientParam = params.get('client');
                 Promise.all([
-                    fetch(URLS.clients).then(r => r.text()).then(csv => Papa.parse(csv.split('\n').slice(2).join('\n'), { header: true, skipEmptyLines: true }).data.map(mapClient).filter(r => r.client)),
-                    fetch(URLS.setupTiming).then(r => r.text()).then(csv => { const lines = csv.split('\n'); return Papa.parse([lines[0], ...lines.slice(2)].join('\n'), { header: true, skipEmptyLines: true }).data.map(mapSetupTiming).filter(r => r.client); })
+                    // Client Ads Performance - headers in row 2, skip row 1
+                    fetch(URLS.clientAdsPerformance).then(r => r.text()).then(csv => {
+                        const lines = csv.split('\n');
+                        const newCsv = [lines[1], ...lines.slice(2)].join('\n');
+                        return Papa.parse(newCsv, { header: true, skipEmptyLines: true }).data.map(mapClient).filter(r => r.client);
+                    }),
+                    // Setup Timing - headers in row 1, skip row 2
+                    fetch(URLS.setupTiming).then(r => r.text()).then(csv => { 
+                        const lines = csv.split('\n'); 
+                        return Papa.parse([lines[0], ...lines.slice(2)].join('\n'), { header: true, skipEmptyLines: true }).data.map(mapSetupTiming).filter(r => r.client); 
+                    })
                 ]).then(([c, s]) => {
                     setClients(c); setSetupData(s);
                     if (clientParam) { const found = c.find(x => x.client.toLowerCase() === decodeURIComponent(clientParam).toLowerCase()); if (found) setSelected(found); }
@@ -795,15 +889,21 @@
 
             const s = getSetupInfo(selected);
 
+            // Check if selected client exists in ads performance data
+            const isMissingFromAdsSheet = selected ? false : false; // Will be set properly below
+
             const renderTab = () => {
+                // Check if we have a client selected from Setup Timing but NOT in Ads Performance
+                const selectedSetupOnly = !selected && tab === 'health';
+                
                 switch (tab) {
-                    case 'health': return <ClientHealthTab c={selected} s={s} />;
+                    case 'health': return <ClientHealthTab c={selected} s={s} isMissingFromAdsSheet={false} />;
                     case 'scripts': return <CallScriptsTab c={selected} s={s} />;
                     case 'livehelp': return <LiveCallHelpTab c={selected} s={s} />;
                     case 'strategy': return <StrategyTab c={selected} s={s} />;
                     case 'save': return <SaveClientTab c={selected} s={s} />;
                     case 'notes': return <NotesActivityTab c={selected} />;
-                    default: return <ClientHealthTab c={selected} s={s} />;
+                    default: return <ClientHealthTab c={selected} s={s} isMissingFromAdsSheet={false} />;
                 }
             };
 
