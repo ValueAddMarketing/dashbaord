@@ -55,6 +55,7 @@
         const fmt = v => '$'+(pn(v)).toLocaleString('en-US',{maximumFractionDigits:0});
         const fmtD = v => '$'+(pn(v)).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
         const fmtN = v => (pn(v)).toLocaleString('en-US',{maximumFractionDigits:0});
+        const fmtP = v => (pn(v)).toFixed(1)+'%';
         const getDisplayName = (email, user) => {
             if (user?.user_metadata?.full_name) return user.user_metadata.full_name;
             if (user?.user_metadata?.name) return user.user_metadata.name;
@@ -426,6 +427,7 @@
             const [clients, setClients] = useState([]);
             const [setupData, setSetupData] = useState([]);
             const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
 
             useEffect(() => {
                 supabase.auth.getSession().then(({ data: { session } }) => { setUser(session?.user || null); setAuthLoading(false); });
@@ -435,19 +437,61 @@
 
             useEffect(() => {
                 if (!user) return;
+                
+                console.log('Fetching data...');
+                
                 Promise.all([
                     // Client Ads Performance - headers in row 2, skip row 1
-                    fetch(URLS.clientAdsPerformance).then(r => r.text()).then(csv => {
-                        const lines = csv.split('\n');
-                        const newCsv = [lines[1], ...lines.slice(2)].join('\n');
-                        return Papa.parse(newCsv, { header: true, skipEmptyLines: true }).data.map(mapClient).filter(r => r.client);
-                    }),
+                    fetch(URLS.clientAdsPerformance)
+                        .then(r => {
+                            console.log('Client Ads Performance response:', r.status);
+                            return r.text();
+                        })
+                        .then(csv => {
+                            console.log('CSV first 500 chars:', csv.substring(0, 500));
+                            const lines = csv.split('\n');
+                            console.log('Total lines:', lines.length);
+                            console.log('Line 0 (should skip):', lines[0]?.substring(0, 100));
+                            console.log('Line 1 (headers):', lines[1]?.substring(0, 100));
+                            console.log('Line 2 (first data):', lines[2]?.substring(0, 100));
+                            // Use line 1 as headers (row 2 in sheet), skip line 0 (row 1)
+                            const newCsv = [lines[1], ...lines.slice(2)].join('\n');
+                            const parsed = Papa.parse(newCsv, { header: true, skipEmptyLines: true });
+                            console.log('Parsed headers:', parsed.meta.fields);
+                            console.log('Parsed data count:', parsed.data.length);
+                            const mapped = parsed.data.map(mapClient).filter(r => r.client);
+                            console.log('Mapped clients:', mapped.length, mapped[0]);
+                            return mapped;
+                        })
+                        .catch(err => {
+                            console.error('Error fetching Client Ads Performance:', err);
+                            return [];
+                        }),
                     // Setup Timing - headers in row 1, skip row 2
-                    fetch(URLS.setupTiming).then(r => r.text()).then(csv => { 
-                        const lines = csv.split('\n'); 
-                        return Papa.parse([lines[0], ...lines.slice(2)].join('\n'), { header: true, skipEmptyLines: true }).data.map(mapSetupTiming).filter(r => r.client); 
-                    })
-                ]).then(([c, s]) => { setClients(c); setSetupData(s); setLoading(false); });
+                    fetch(URLS.setupTiming)
+                        .then(r => r.text())
+                        .then(csv => { 
+                            const lines = csv.split('\n'); 
+                            return Papa.parse([lines[0], ...lines.slice(2)].join('\n'), { header: true, skipEmptyLines: true }).data.map(mapSetupTiming).filter(r => r.client); 
+                        })
+                        .catch(err => {
+                            console.error('Error fetching Setup Timing:', err);
+                            return [];
+                        })
+                ]).then(([c, s]) => { 
+                    console.log('Final clients:', c.length);
+                    console.log('Final setup:', s.length);
+                    setClients(c); 
+                    setSetupData(s); 
+                    setLoading(false);
+                    if (c.length === 0) {
+                        setError('No client data loaded. Make sure the Client Ads Performance sheet is published to web as CSV.');
+                    }
+                }).catch(err => {
+                    console.error('Promise.all error:', err);
+                    setError('Failed to load data: ' + err.message);
+                    setLoading(false);
+                });
             }, [user]);
 
             const handleClientClick = (clientName) => {
@@ -457,6 +501,24 @@
             if (authLoading) return <div className="min-h-screen flex items-center justify-center text-4xl">⏳</div>;
             if (!user) return <LoginPage onLogin={setUser} />;
             if (loading) return <div className="min-h-screen flex items-center justify-center text-4xl">⏳</div>;
+            if (error) return (
+                <div className="min-h-screen flex items-center justify-center p-4">
+                    <div className="card p-8 max-w-lg text-center">
+                        <div className="text-4xl mb-4">⚠️</div>
+                        <h2 className="text-xl font-bold text-red-400 mb-4">Error Loading Data</h2>
+                        <p className="text-slate-400 mb-4">{error}</p>
+                        <p className="text-slate-500 text-sm mb-4">Make sure the "Client Ads Performance" tab is published:</p>
+                        <ol className="text-left text-slate-400 text-sm space-y-2 mb-4">
+                            <li>1. Open Google Sheets</li>
+                            <li>2. File → Share → Publish to web</li>
+                            <li>3. Select "Client Ads Performance" tab</li>
+                            <li>4. Format: CSV</li>
+                            <li>5. Click Publish</li>
+                        </ol>
+                        <button onClick={() => window.location.reload()} className="px-6 py-2 bg-brand-cyan text-dark-900 rounded-lg font-medium">Retry</button>
+                    </div>
+                </div>
+            );
 
             return (
                 <AuthContext.Provider value={{ user }}>
