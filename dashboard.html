@@ -472,30 +472,36 @@
             useEffect(() => {
                 if (!user) return;
                 
-                console.log('Fetching data...');
+                // Try to load from cache first for instant display
+                const cachedClients = localStorage.getItem('vam_clients');
+                const cachedSetup = localStorage.getItem('vam_setup');
+                const cacheTime = localStorage.getItem('vam_cache_time');
+                const cacheAge = cacheTime ? Date.now() - parseInt(cacheTime) : Infinity;
                 
+                // Use cache if less than 5 minutes old
+                if (cachedClients && cachedSetup && cacheAge < 300000) {
+                    const c = JSON.parse(cachedClients);
+                    const s = JSON.parse(cachedSetup);
+                    setClients(c);
+                    setSetupData(s);
+                    setLoading(false);
+                    // Still fetch fresh data in background
+                    fetchFreshData(false);
+                } else {
+                    // No cache or expired, fetch fresh
+                    fetchFreshData(true);
+                }
+            }, [user]);
+
+            const fetchFreshData = (updateLoading) => {
                 Promise.all([
                     // Client Ads Performance - headers in row 2, skip row 1
                     fetch(URLS.clientAdsPerformance)
-                        .then(r => {
-                            console.log('Client Ads Performance response:', r.status);
-                            return r.text();
-                        })
+                        .then(r => r.text())
                         .then(csv => {
-                            console.log('CSV first 500 chars:', csv.substring(0, 500));
                             const lines = csv.split('\n');
-                            console.log('Total lines:', lines.length);
-                            console.log('Line 0 (should skip):', lines[0]?.substring(0, 100));
-                            console.log('Line 1 (headers):', lines[1]?.substring(0, 100));
-                            console.log('Line 2 (first data):', lines[2]?.substring(0, 100));
-                            // Use line 1 as headers (row 2 in sheet), skip line 0 (row 1)
                             const newCsv = [lines[1], ...lines.slice(2)].join('\n');
-                            const parsed = Papa.parse(newCsv, { header: true, skipEmptyLines: true });
-                            console.log('Parsed headers:', parsed.meta.fields);
-                            console.log('Parsed data count:', parsed.data.length);
-                            const mapped = parsed.data.map(mapClient).filter(r => r.client);
-                            console.log('Mapped clients:', mapped.length, mapped[0]);
-                            return mapped;
+                            return Papa.parse(newCsv, { header: true, skipEmptyLines: true }).data.map(mapClient).filter(r => r.client);
                         })
                         .catch(err => {
                             console.error('Error fetching Client Ads Performance:', err);
@@ -513,23 +519,28 @@
                             return [];
                         })
                 ]).then(([c, s]) => { 
-                    console.log('Final clients:', c.length);
-                    console.log('Final setup:', s.length);
+                    // Save to cache
+                    localStorage.setItem('vam_clients', JSON.stringify(c));
+                    localStorage.setItem('vam_setup', JSON.stringify(s));
+                    localStorage.setItem('vam_cache_time', Date.now().toString());
+                    
                     setClients(c); 
                     setSetupData(s); 
-                    setLoading(false);
+                    if (updateLoading) setLoading(false);
                     if (c.length === 0) {
                         setError('No client data loaded. Make sure the Client Ads Performance sheet is published to web as CSV.');
                     }
                 }).catch(err => {
                     console.error('Promise.all error:', err);
-                    setError('Failed to load data: ' + err.message);
-                    setLoading(false);
+                    if (updateLoading) {
+                        setError('Failed to load data: ' + err.message);
+                        setLoading(false);
+                    }
                 });
-            }, [user]);
+            };
 
             const handleClientClick = (clientName) => {
-                window.location.href = `index.html?client=${encodeURIComponent(clientName)}`;
+                window.location.href = 'index.html?client=' + encodeURIComponent(clientName);
             };
 
             if (authLoading) return <div className="min-h-screen flex items-center justify-center text-4xl">⏳</div>;
