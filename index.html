@@ -1188,11 +1188,7 @@
                 if (!situation.trim()) return;
                 setLoading(true);
                 try {
-                    let ANTHROPIC_API_KEY = getAnthropicApiKey();
-                    if (!ANTHROPIC_API_KEY) {
-                        ANTHROPIC_API_KEY = promptForApiKey();
-                        if (!ANTHROPIC_API_KEY) throw new Error('API key required');
-                    }
+                    const ANTHROPIC_API_KEY = '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';
 
                     const promptText = `You are a CSM (Customer Success Manager) helping on a live call with a real estate lead generation client.
 
@@ -1425,11 +1421,7 @@ Provide a brief, practical response that the CSM can use immediately on the call
             const processTranscript = async () => {
                 setProcessing(true);
                 try {
-                    let ANTHROPIC_API_KEY = getAnthropicApiKey();
-                    if (!ANTHROPIC_API_KEY) {
-                        ANTHROPIC_API_KEY = promptForApiKey();
-                        if (!ANTHROPIC_API_KEY) throw new Error('API key required');
-                    }
+                    const ANTHROPIC_API_KEY = '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';
 
                     const promptContent = `Analyze this meeting transcript for client "${c?.client || 'Unknown'}".
 
