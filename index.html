@@ -1188,8 +1188,6 @@
                 if (!situation.trim()) return;
                 setLoading(true);
                 try {
-                    const ANTHROPIC_API_KEY = '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';
-
                     const promptText = `You are a CSM (Customer Success Manager) helping on a live call with a real estate lead generation client.
 
 Client: ${c?.client || 'Unknown'}
@@ -1201,16 +1199,12 @@ The CSM needs help with this situation: "${situation}"
 
 Provide a brief, practical response that the CSM can use immediately on the call. Be direct and actionable. Keep it under 200 words.`;
 
-                    const res = await fetch('https://api.anthropic.com/v1/messages', {
+                    const res = await fetch('/api/analyze', {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json',
-                            'x-api-key': ANTHROPIC_API_KEY,
-                            'anthropic-version': '2023-06-01',
-                            'anthropic-dangerous-direct-browser-access': 'true'
+                            'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                            model: 'claude-3-5-sonnet-20241022',
                             max_tokens: 500,
                             messages: [{ role: 'user', content: promptText }]
                         })
@@ -1421,8 +1415,6 @@ Provide a brief, practical response that the CSM can use immediately on the call
             const processTranscript = async () => {
                 setProcessing(true);
                 try {
-                    const ANTHROPIC_API_KEY = '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';
-
                     const promptContent = `Analyze this meeting transcript for client "${c?.client || 'Unknown'}".
 
 Extract ALL details and return a comprehensive JSON object with this exact structure:
@@ -1455,16 +1447,12 @@ Return ONLY the JSON object, no markdown formatting.
 TRANSCRIPT:
 ${transcript}`;
 
-                    const res = await fetch('https://api.anthropic.com/v1/messages', {
+                    const res = await fetch('/api/analyze', {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json',
-                            'x-api-key': ANTHROPIC_API_KEY,
-                            'anthropic-version': '2023-06-01',
-                            'anthropic-dangerous-direct-browser-access': 'true'
+                            'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                            model: 'claude-3-5-sonnet-20241022',
                             max_tokens: 2000,
                             messages: [{ role: 'user', content: promptContent }]
                         })
