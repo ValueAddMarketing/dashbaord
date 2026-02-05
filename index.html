@@ -1324,8 +1324,12 @@
             const [newNote, setNewNote] = useState('');
             const [transcript, setTranscript] = useState('');
             const [meetingDate, setMeetingDate] = useState(new Date().toISOString().split('T')[0]);
+            const [meetingTitle, setMeetingTitle] = useState('');
             const [processing, setProcessing] = useState(false);
             const [summary, setSummary] = useState(null);
+            const [expandedMeeting, setExpandedMeeting] = useState(null);
+            const [editingNote, setEditingNote] = useState(null);
+            const [editNoteText, setEditNoteText] = useState('');
 
             useEffect(() => { if (c?.client) { loadNotes(); loadMeetings(); loadActivities(); } }, [c?.client]);
 
@@ -1333,43 +1337,195 @@
             const loadMeetings = async () => { const { data } = await supabase.from('meeting_notes').select('*').eq('client_name', c.client).order('meeting_date', { ascending: false }); if (data) setMeetings(data); };
             const loadActivities = async () => { const { data } = await supabase.from('activity_log').select('*').eq('client_name', c.client).order('created_at', { ascending: false }).limit(50); if (data) setActivities(data); };
 
-            const addNote = async () => {
-                if (!newNote.trim()) return;
-                const { data } = await supabase.from('client_notes').insert({ client_name: c.client, note_text: newNote, user_email: user?.email, user_id: user?.id }).select().single();
-                if (data) { setNotes([data, ...notes]); setNewNote(''); }
-                await supabase.from('activity_log').insert({ user_email: user?.email, client_name: c.client, action: 'Added note', details: newNote.substring(0, 50) });
+            const addNote = async (noteText, source = 'manual') => {
+                const text = noteText || newNote;
+                if (!text.trim()) return;
+                const { data } = await supabase.from('client_notes').insert({
+                    client_name: c.client,
+                    note_text: text,
+                    user_email: user?.email,
+                    user_id: user?.id,
+                    source: source,
+                    is_important: source === 'ai_extracted'
+                }).select().single();
+                if (data) { setNotes([data, ...notes]); if (!noteText) setNewNote(''); }
+                await supabase.from('activity_log').insert({ user_email: user?.email, client_name: c.client, action: source === 'ai_extracted' ? 'AI extracted important note' : 'Added note', details: text.substring(0, 50) });
+                return data;
             };
 
-            const deleteNote = async (id) => { await supabase.from('client_notes').delete().eq('id', id); setNotes(notes.filter(n => n.id !== id)); };
+            const deleteNote = async (id) => {
+                await supabase.from('client_notes').delete().eq('id', id);
+                setNotes(notes.filter(n => n.id !== id));
+                await supabase.from('activity_log').insert({ user_email: user?.email, client_name: c.client, action: 'Deleted note', details: '' });
+            };
+
+            const startEditNote = (note) => {
+                setEditingNote(note.id);
+                setEditNoteText(note.note_text);
+            };
+
+            const saveEditNote = async (id) => {
+                if (!editNoteText.trim()) return;
+                const { data } = await supabase.from('client_notes').update({
+                    note_text: editNoteText,
+                    edited_at: new Date().toISOString(),
+                    edited_by: user?.email
+                }).eq('id', id).select().single();
+                if (data) {
+                    setNotes(notes.map(n => n.id === id ? data : n));
+                    setEditingNote(null);
+                    setEditNoteText('');
+                }
+                await supabase.from('activity_log').insert({ user_email: user?.email, client_name: c.client, action: 'Edited note', details: editNoteText.substring(0, 50) });
+            };
+
+            const cancelEditNote = () => {
+                setEditingNote(null);
+                setEditNoteText('');
+            };
 
             const processTranscript = async () => {
                 setProcessing(true);
                 try {
-                    const promptContent = 'Summarize this meeting for ' + (c?.client || 'client') + '. Return JSON: {summary, clientSentiment, keyPoints[], actionItems[{task,owner}], riskLevel}\n\n' + transcript;
+                    const promptContent = `Analyze this meeting transcript for client "${c?.client || 'Unknown'}".
+
+Extract ALL details and return a comprehensive JSON object with this exact structure:
+{
+    "title": "Brief meeting title (e.g., 'Weekly Check-in', 'Onboarding Call')",
+    "summary": "2-3 sentence executive summary of the meeting",
+    "duration": "Estimated duration if mentioned (e.g., '30 minutes') or 'Not specified'",
+    "participants": ["List of all people mentioned or who spoke in the meeting"],
+    "topics": ["Main topics discussed in the meeting"],
+    "clientSentiment": "positive/neutral/negative/frustrated/excited/concerned",
+    "sentimentExplanation": "Brief explanation of why this sentiment was detected",
+    "keyPoints": ["Important points discussed - be thorough, list ALL key points"],
+    "actionItems": [{"task": "Specific task", "owner": "Person responsible", "dueDate": "If mentioned, otherwise null", "priority": "high/medium/low"}],
+    "decisions": ["Any decisions made during the meeting"],
+    "concerns": ["Any concerns or issues raised by the client"],
+    "followUpNeeded": true/false,
+    "followUpItems": ["Specific follow-up items needed"],
+    "riskLevel": "low/medium/high",
+    "riskFactors": ["Reasons for the risk level"],
+    "importantNotes": ["Critical notes that should be flagged for attention - these will be added to the Notes History"],
+    "nextSteps": ["Agreed next steps"],
+    "clientRequests": ["Specific requests made by the client"],
+    "positiveSignals": ["Any positive indicators about the client relationship"],
+    "warningSignals": ["Any warning signs or red flags detected"]
+}
+
+Be thorough and extract as much information as possible. If something isn't mentioned, use null or empty array.
+
+TRANSCRIPT:
+${transcript}`;
+
                     const res = await fetch('https://api.anthropic.com/v1/messages', {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 1000,
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            model: 'claude-sonnet-4-20250514',
+                            max_tokens: 2000,
                             messages: [{ role: 'user', content: promptContent }]
                         })
                     });
                     const data = await res.json();
-                    setSummary(JSON.parse(data.content?.[0]?.text || '{}'));
-                } catch (err) { setSummary({ summary: 'Transcript saved.', keyPoints: [], actionItems: [], riskLevel: 'medium' }); }
+                    const responseText = data.content?.[0]?.text || '{}';
+                    // Extract JSON from response (handle markdown code blocks)
+                    const jsonMatch = responseText.match(/```json\s*([\s\S]*?)\s*```/) || responseText.match(/```\s*([\s\S]*?)\s*```/) || [null, responseText];
+                    const parsedSummary = JSON.parse(jsonMatch[1] || responseText);
+                    setSummary(parsedSummary);
+                    // Auto-set meeting title if extracted
+                    if (parsedSummary.title && !meetingTitle) {
+                        setMeetingTitle(parsedSummary.title);
+                    }
+                } catch (err) {
+                    console.error('AI Analysis error:', err);
+                    setSummary({
+                        summary: 'Transcript saved (AI analysis failed).',
+                        keyPoints: [],
+                        actionItems: [],
+                        riskLevel: 'medium',
+                        importantNotes: [],
+                        participants: [],
+                        topics: []
+                    });
+                }
                 setProcessing(false);
             };
 
             const saveMeeting = async () => {
                 if (!summary && !transcript.trim()) return;
-                const { data } = await supabase.from('meeting_notes').insert({
-                    client_name: c.client, meeting_date: meetingDate,
-                    transcript, summary: summary?.summary || 'Manual entry',
+
+                // Prepare comprehensive meeting data
+                const meetingData = {
+                    client_name: c.client,
+                    meeting_date: meetingDate,
+                    meeting_title: meetingTitle || summary?.title || 'Meeting Notes',
+                    transcript,
+                    summary: summary?.summary || 'Manual entry',
+                    duration: summary?.duration || null,
+                    participants: summary?.participants || [],
+                    topics: summary?.topics || [],
                     client_sentiment: summary?.clientSentiment || 'neutral',
-                    key_points: summary?.keyPoints || [], action_items: summary?.actionItems || [],
+                    sentiment_explanation: summary?.sentimentExplanation || null,
+                    key_points: summary?.keyPoints || [],
+                    action_items: summary?.actionItems || [],
+                    decisions: summary?.decisions || [],
+                    concerns: summary?.concerns || [],
+                    follow_up_needed: summary?.followUpNeeded || false,
+                    follow_up_items: summary?.followUpItems || [],
                     risk_level: summary?.riskLevel || 'medium',
-                    user_email: user?.email
-                }).select().single();
-                if (data) { setMeetings([data, ...meetings]); setTranscript(''); setSummary(null); }
-                await supabase.from('activity_log').insert({ user_email: user?.email, client_name: c.client, action: 'Added meeting notes', details: (summary?.summary || 'Manual entry').substring(0, 50) });
+                    risk_factors: summary?.riskFactors || [],
+                    next_steps: summary?.nextSteps || [],
+                    client_requests: summary?.clientRequests || [],
+                    positive_signals: summary?.positiveSignals || [],
+                    warning_signals: summary?.warningSignals || [],
+                    user_email: user?.email,
+                    created_by_name: getDisplayName(user?.email, user)
+                };
+
+                const { data } = await supabase.from('meeting_notes').insert(meetingData).select().single();
+
+                if (data) {
+                    setMeetings([data, ...meetings]);
+
+                    // Automatically add important notes to Notes History
+                    if (summary?.importantNotes && summary.importantNotes.length > 0) {
+                        for (const importantNote of summary.importantNotes) {
+                            await addNote(`📌 [From ${meetingTitle || summary?.title || 'Meeting'} on ${meetingDate}] ${importantNote}`, 'ai_extracted');
+                        }
+                    }
+
+                    // Add high-priority action items as notes
+                    const highPriorityActions = (summary?.actionItems || []).filter(a => a.priority === 'high');
+                    for (const action of highPriorityActions) {
+                        await addNote(`⚠️ HIGH PRIORITY ACTION [${meetingDate}]: ${action.task} (Owner: ${action.owner})`, 'ai_extracted');
+                    }
+
+                    // Add concerns as notes if risk level is high
+                    if (summary?.riskLevel === 'high' && summary?.concerns?.length > 0) {
+                        await addNote(`🚨 CLIENT CONCERNS [${meetingDate}]: ${summary.concerns.join('; ')}`, 'ai_extracted');
+                    }
+
+                    setTranscript('');
+                    setSummary(null);
+                    setMeetingTitle('');
+
+                    // Reload notes to show newly added ones
+                    loadNotes();
+                }
+
+                await supabase.from('activity_log').insert({
+                    user_email: user?.email,
+                    client_name: c.client,
+                    action: 'Added meeting notes',
+                    details: `${meetingTitle || summary?.title || 'Meeting'}: ${(summary?.summary || 'Manual entry').substring(0, 100)}`
+                });
+            };
+
+            const deleteMeeting = async (id) => {
+                await supabase.from('meeting_notes').delete().eq('id', id);
+                setMeetings(meetings.filter(m => m.id !== id));
+                await supabase.from('activity_log').insert({ user_email: user?.email, client_name: c.client, action: 'Deleted meeting record', details: '' });
             };
 
             if (!c) return <div className="card p-12 text-center text-slate-500">Select a client</div>;
@@ -1389,14 +1545,37 @@
                     <div className="card p-6">
                         <h3 className="text-lg font-semibold text-white mb-4">📚 Notes History</h3>
                         {notes.length === 0 ? <div className="text-slate-500 text-center py-4">No notes yet</div> : (
-                            <div className="space-y-3 max-h-[300px] overflow-y-auto scrollbar">
+                            <div className="space-y-3 max-h-[400px] overflow-y-auto scrollbar">
                                 {notes.map(n => (
-                                    <div key={n.id} className="p-4 bg-dark-800 rounded-xl group">
+                                    <div key={n.id} className={`p-4 bg-dark-800 rounded-xl group ${n.is_important ? 'border-l-4 border-amber-500' : ''} ${n.source === 'ai_extracted' ? 'bg-gradient-to-r from-dark-800 to-purple-900/20' : ''}`}>
                                         <div className="flex justify-between items-start">
-                                            <div><span className="text-brand-purple text-sm font-medium">{getDisplayName(n.user_email)}</span><span className="text-slate-600 text-sm ml-2">{new Date(n.created_at).toLocaleString()}</span></div>
-                                            <button onClick={() => deleteNote(n.id)} className="text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100">✕</button>
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <span className="text-brand-purple text-sm font-medium">{getDisplayName(n.user_email)}</span>
+                                                <span className="text-slate-600 text-sm">{new Date(n.created_at).toLocaleString()}</span>
+                                                {n.source === 'ai_extracted' && <span className="px-2 py-0.5 bg-purple-500/20 text-purple-400 text-xs rounded">AI Extracted</span>}
+                                                {n.is_important && <span className="px-2 py-0.5 bg-amber-500/20 text-amber-400 text-xs rounded">Important</span>}
+                                                {n.edited_at && <span className="text-slate-500 text-xs">(edited by {getDisplayName(n.edited_by)} on {new Date(n.edited_at).toLocaleString()})</span>}
+                                            </div>
+                                            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button onClick={() => startEditNote(n)} className="text-slate-500 hover:text-brand-cyan text-sm">✏️</button>
+                                                <button onClick={() => deleteNote(n.id)} className="text-slate-500 hover:text-red-400 text-sm">✕</button>
+                                            </div>
                                         </div>
-                                        <p className="text-white mt-2">{n.note_text}</p>
+                                        {editingNote === n.id ? (
+                                            <div className="mt-3">
+                                                <textarea
+                                                    value={editNoteText}
+                                                    onChange={e => setEditNoteText(e.target.value)}
+                                                    className="w-full bg-dark-700 border border-dark-600 rounded-lg p-3 text-white min-h-[80px]"
+                                                />
+                                                <div className="flex gap-2 mt-2">
+                                                    <button onClick={() => saveEditNote(n.id)} className="px-4 py-2 bg-emerald-500/20 text-emerald-400 rounded-lg text-sm">Save</button>
+                                                    <button onClick={cancelEditNote} className="px-4 py-2 bg-slate-500/20 text-slate-400 rounded-lg text-sm">Cancel</button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <p className="text-white mt-2 whitespace-pre-wrap">{n.note_text}</p>
+                                        )}
                                     </div>
                                 ))}
                             </div>
@@ -1406,21 +1585,174 @@
                     {/* ===== MEETING TRANSCRIPT SECTION ===== */}
                     <div className="card p-6">
                         <h3 className="text-lg font-semibold text-white mb-4">🎙️ Meeting Transcript Summary</h3>
-                        <div className="flex gap-4 mb-4">
+                        <div className="flex flex-wrap gap-4 mb-4">
                             <input type="date" value={meetingDate} onChange={e => setMeetingDate(e.target.value)} className="bg-dark-800 border border-dark-700 rounded-xl px-4 py-2 text-white" />
+                            <input
+                                type="text"
+                                value={meetingTitle}
+                                onChange={e => setMeetingTitle(e.target.value)}
+                                placeholder="Meeting title (optional - AI will suggest)"
+                                className="flex-1 min-w-[200px] bg-dark-800 border border-dark-700 rounded-xl px-4 py-2 text-white"
+                            />
                         </div>
                         <textarea value={transcript} onChange={e => setTranscript(e.target.value)} placeholder="Paste transcript from Fathom, Otter, Zoom, etc..." className="w-full bg-dark-800 border border-dark-700 rounded-xl p-4 text-white min-h-[150px]" />
-                        <div className="flex gap-3 mt-3">
-                            <button onClick={processTranscript} disabled={!transcript.trim() || processing} className="px-6 py-3 bg-gradient-to-r from-brand-cyan to-brand-purple text-white font-semibold rounded-xl disabled:opacity-50">{processing ? '🤖 Analyzing...' : '🤖 Analyze with AI'}</button>
+                        <div className="flex flex-wrap gap-3 mt-3">
+                            <button onClick={processTranscript} disabled={!transcript.trim() || processing} className="px-6 py-3 bg-gradient-to-r from-brand-cyan to-brand-purple text-white font-semibold rounded-xl disabled:opacity-50 flex items-center gap-2">
+                                {processing ? (<><span className="animate-spin">⚙️</span> Analyzing...</>) : '🤖 Analyze with AI'}
+                            </button>
                             <button onClick={saveMeeting} disabled={!transcript.trim()} className="px-6 py-3 bg-emerald-500/20 text-emerald-400 rounded-xl disabled:opacity-50">💾 Save Meeting</button>
                         </div>
+
+                        {/* Enhanced AI Analysis Display */}
                         {summary && (
-                            <div className="mt-4 p-4 bg-dark-800 rounded-xl space-y-3">
-                                <div><span className="text-slate-400 text-sm">Summary:</span><p className="text-white">{summary.summary}</p></div>
-                                {summary.clientSentiment && <div><span className="text-slate-400 text-sm">Sentiment:</span><span className="text-white ml-2">{summary.clientSentiment}</span></div>}
-                                {summary.riskLevel && <div><span className="text-slate-400 text-sm">Risk Level:</span><span className={`ml-2 px-2 py-1 rounded text-xs ${summary.riskLevel === 'high' ? 'bg-red-500/20 text-red-400' : summary.riskLevel === 'medium' ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-500/20 text-emerald-400'}`}>{summary.riskLevel}</span></div>}
-                                {summary.keyPoints?.length > 0 && <div><span className="text-slate-400 text-sm">Key Points:</span><ul className="mt-1 space-y-1">{summary.keyPoints.map((kp, i) => <li key={i} className="text-slate-300 text-sm">• {kp}</li>)}</ul></div>}
-                                {summary.actionItems?.length > 0 && <div><span className="text-slate-400 text-sm">Action Items:</span><ul className="mt-1 space-y-1">{summary.actionItems.map((ai, i) => <li key={i} className="text-slate-300 text-sm">• {ai.task} ({ai.owner})</li>)}</ul></div>}
+                            <div className="mt-4 p-5 bg-dark-800 rounded-xl space-y-4">
+                                {/* Header with title and sentiment */}
+                                <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-dark-700">
+                                    <div>
+                                        <h4 className="text-lg font-semibold text-white">{summary.title || 'Meeting Analysis'}</h4>
+                                        {summary.duration && <span className="text-slate-400 text-sm">Duration: {summary.duration}</span>}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        {summary.clientSentiment && (
+                                            <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                                                ['positive', 'excited'].includes(summary.clientSentiment) ? 'bg-emerald-500/20 text-emerald-400' :
+                                                ['negative', 'frustrated'].includes(summary.clientSentiment) ? 'bg-red-500/20 text-red-400' :
+                                                summary.clientSentiment === 'concerned' ? 'bg-amber-500/20 text-amber-400' :
+                                                'bg-slate-500/20 text-slate-400'
+                                            }`}>
+                                                {summary.clientSentiment === 'positive' ? '😊' : summary.clientSentiment === 'negative' ? '😟' : summary.clientSentiment === 'excited' ? '🎉' : summary.clientSentiment === 'frustrated' ? '😤' : summary.clientSentiment === 'concerned' ? '😟' : '😐'} {summary.clientSentiment}
+                                            </span>
+                                        )}
+                                        {summary.riskLevel && (
+                                            <span className={`px-3 py-1 rounded-full text-sm font-medium ${summary.riskLevel === 'high' ? 'bg-red-500/20 text-red-400' : summary.riskLevel === 'medium' ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
+                                                Risk: {summary.riskLevel}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Summary */}
+                                <div>
+                                    <span className="text-brand-cyan text-sm font-medium">Summary</span>
+                                    <p className="text-white mt-1">{summary.summary}</p>
+                                </div>
+
+                                {/* Participants & Topics Row */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {summary.participants?.length > 0 && (
+                                        <div>
+                                            <span className="text-brand-cyan text-sm font-medium">👥 Participants</span>
+                                            <div className="flex flex-wrap gap-2 mt-1">
+                                                {summary.participants.map((p, i) => (
+                                                    <span key={i} className="px-2 py-1 bg-dark-700 text-slate-300 text-sm rounded">{p}</span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {summary.topics?.length > 0 && (
+                                        <div>
+                                            <span className="text-brand-cyan text-sm font-medium">📋 Topics Discussed</span>
+                                            <div className="flex flex-wrap gap-2 mt-1">
+                                                {summary.topics.map((t, i) => (
+                                                    <span key={i} className="px-2 py-1 bg-brand-purple/20 text-brand-purple text-sm rounded">{t}</span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Key Points */}
+                                {summary.keyPoints?.length > 0 && (
+                                    <div>
+                                        <span className="text-brand-cyan text-sm font-medium">🔑 Key Points</span>
+                                        <ul className="mt-1 space-y-1">
+                                            {summary.keyPoints.map((kp, i) => <li key={i} className="text-slate-300 text-sm flex items-start gap-2"><span className="text-brand-cyan">•</span> {kp}</li>)}
+                                        </ul>
+                                    </div>
+                                )}
+
+                                {/* Action Items */}
+                                {summary.actionItems?.length > 0 && (
+                                    <div>
+                                        <span className="text-brand-cyan text-sm font-medium">✅ Action Items</span>
+                                        <div className="mt-2 space-y-2">
+                                            {summary.actionItems.map((ai, i) => (
+                                                <div key={i} className={`p-3 rounded-lg ${ai.priority === 'high' ? 'bg-red-500/10 border border-red-500/30' : ai.priority === 'medium' ? 'bg-amber-500/10 border border-amber-500/30' : 'bg-dark-700'}`}>
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-white text-sm">{ai.task}</span>
+                                                        {ai.priority && <span className={`px-2 py-0.5 text-xs rounded ${ai.priority === 'high' ? 'bg-red-500/20 text-red-400' : ai.priority === 'medium' ? 'bg-amber-500/20 text-amber-400' : 'bg-slate-500/20 text-slate-400'}`}>{ai.priority}</span>}
+                                                    </div>
+                                                    <div className="flex gap-4 mt-1 text-xs text-slate-400">
+                                                        <span>👤 {ai.owner}</span>
+                                                        {ai.dueDate && <span>📅 {ai.dueDate}</span>}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Decisions */}
+                                {summary.decisions?.length > 0 && (
+                                    <div>
+                                        <span className="text-brand-cyan text-sm font-medium">🎯 Decisions Made</span>
+                                        <ul className="mt-1 space-y-1">
+                                            {summary.decisions.map((d, i) => <li key={i} className="text-slate-300 text-sm flex items-start gap-2"><span className="text-emerald-400">✓</span> {d}</li>)}
+                                        </ul>
+                                    </div>
+                                )}
+
+                                {/* Concerns & Warning Signals */}
+                                {(summary.concerns?.length > 0 || summary.warningSignals?.length > 0) && (
+                                    <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                                        <span className="text-red-400 text-sm font-medium">⚠️ Concerns & Warning Signals</span>
+                                        <ul className="mt-1 space-y-1">
+                                            {summary.concerns?.map((c, i) => <li key={`c-${i}`} className="text-red-300 text-sm">• {c}</li>)}
+                                            {summary.warningSignals?.map((w, i) => <li key={`w-${i}`} className="text-amber-300 text-sm">• {w}</li>)}
+                                        </ul>
+                                    </div>
+                                )}
+
+                                {/* Positive Signals */}
+                                {summary.positiveSignals?.length > 0 && (
+                                    <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
+                                        <span className="text-emerald-400 text-sm font-medium">✨ Positive Signals</span>
+                                        <ul className="mt-1 space-y-1">
+                                            {summary.positiveSignals.map((p, i) => <li key={i} className="text-emerald-300 text-sm">• {p}</li>)}
+                                        </ul>
+                                    </div>
+                                )}
+
+                                {/* Next Steps */}
+                                {summary.nextSteps?.length > 0 && (
+                                    <div>
+                                        <span className="text-brand-cyan text-sm font-medium">➡️ Next Steps</span>
+                                        <ul className="mt-1 space-y-1">
+                                            {summary.nextSteps.map((ns, i) => <li key={i} className="text-slate-300 text-sm">{i + 1}. {ns}</li>)}
+                                        </ul>
+                                    </div>
+                                )}
+
+                                {/* Important Notes Alert */}
+                                {summary.importantNotes?.length > 0 && (
+                                    <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+                                        <span className="text-amber-400 text-sm font-medium">📌 Important Notes (will be added to Notes History)</span>
+                                        <ul className="mt-1 space-y-1">
+                                            {summary.importantNotes.map((n, i) => <li key={i} className="text-amber-200 text-sm">• {n}</li>)}
+                                        </ul>
+                                    </div>
+                                )}
+
+                                {/* Follow-up indicator */}
+                                {summary.followUpNeeded && (
+                                    <div className="flex items-center gap-2 p-2 bg-brand-purple/20 rounded-lg">
+                                        <span className="text-brand-purple">📞</span>
+                                        <span className="text-brand-purple text-sm font-medium">Follow-up Required</span>
+                                        {summary.followUpItems?.length > 0 && (
+                                            <span className="text-slate-400 text-sm">({summary.followUpItems.join(', ')})</span>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
@@ -1429,17 +1761,191 @@
                     <div className="card p-6">
                         <h3 className="text-lg font-semibold text-white mb-4">📅 Meeting History</h3>
                         {meetings.length === 0 ? <div className="text-slate-500 text-center py-4">No meetings recorded</div> : (
-                            <div className="space-y-3 max-h-[300px] overflow-y-auto scrollbar">
+                            <div className="space-y-4 max-h-[600px] overflow-y-auto scrollbar">
                                 {meetings.map(m => (
-                                    <div key={m.id} className="p-4 bg-dark-800 rounded-xl">
-                                        <div className="flex justify-between items-center mb-2">
-                                            <span className="text-white font-medium">{new Date(m.meeting_date).toLocaleDateString()}</span>
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-slate-500 text-xs">{getDisplayName(m.user_email)}</span>
-                                                <span className={`px-2 py-1 rounded text-xs ${m.risk_level === 'high' ? 'bg-red-500/20 text-red-400' : m.risk_level === 'medium' ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-500/20 text-emerald-400'}`}>{m.risk_level}</span>
+                                    <div key={m.id} className={`bg-dark-800 rounded-xl overflow-hidden ${m.risk_level === 'high' ? 'border-l-4 border-red-500' : m.risk_level === 'medium' ? 'border-l-4 border-amber-500' : 'border-l-4 border-emerald-500'}`}>
+                                        {/* Meeting Header - Always Visible */}
+                                        <div
+                                            className="p-4 cursor-pointer hover:bg-dark-700/50 transition-colors"
+                                            onClick={() => setExpandedMeeting(expandedMeeting === m.id ? null : m.id)}
+                                        >
+                                            <div className="flex flex-wrap justify-between items-start gap-2">
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="text-white font-semibold">{m.meeting_title || 'Meeting'}</span>
+                                                        <span className="text-slate-400 text-sm">{new Date(m.meeting_date).toLocaleDateString()}</span>
+                                                    </div>
+                                                    <p className="text-slate-400 text-sm mt-1 line-clamp-2">{m.summary}</p>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    {m.client_sentiment && (
+                                                        <span className={`px-2 py-1 rounded text-xs ${
+                                                            ['positive', 'excited'].includes(m.client_sentiment) ? 'bg-emerald-500/20 text-emerald-400' :
+                                                            ['negative', 'frustrated'].includes(m.client_sentiment) ? 'bg-red-500/20 text-red-400' :
+                                                            m.client_sentiment === 'concerned' ? 'bg-amber-500/20 text-amber-400' :
+                                                            'bg-slate-500/20 text-slate-400'
+                                                        }`}>{m.client_sentiment}</span>
+                                                    )}
+                                                    <span className={`px-2 py-1 rounded text-xs ${m.risk_level === 'high' ? 'bg-red-500/20 text-red-400' : m.risk_level === 'medium' ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-500/20 text-emerald-400'}`}>{m.risk_level}</span>
+                                                    <span className="text-slate-600 text-xs">▼</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex flex-wrap items-center gap-4 mt-2 text-xs text-slate-500">
+                                                <span>📝 Added by: <span className="text-brand-purple">{m.created_by_name || getDisplayName(m.user_email)}</span></span>
+                                                {m.duration && <span>⏱️ {m.duration}</span>}
+                                                {m.participants?.length > 0 && <span>👥 {m.participants.length} participants</span>}
+                                                {m.action_items?.length > 0 && <span>✅ {m.action_items.length} action items</span>}
+                                                {m.follow_up_needed && <span className="text-amber-400">📞 Follow-up needed</span>}
                                             </div>
                                         </div>
-                                        <p className="text-slate-400 text-sm">{m.summary}</p>
+
+                                        {/* Expanded Meeting Details */}
+                                        {expandedMeeting === m.id && (
+                                            <div className="p-4 pt-0 border-t border-dark-700 space-y-4">
+                                                {/* Participants & Topics */}
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    {m.participants?.length > 0 && (
+                                                        <div>
+                                                            <span className="text-brand-cyan text-xs font-medium">👥 Participants</span>
+                                                            <div className="flex flex-wrap gap-1 mt-1">
+                                                                {m.participants.map((p, i) => (
+                                                                    <span key={i} className="px-2 py-0.5 bg-dark-700 text-slate-300 text-xs rounded">{p}</span>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    {m.topics?.length > 0 && (
+                                                        <div>
+                                                            <span className="text-brand-cyan text-xs font-medium">📋 Topics</span>
+                                                            <div className="flex flex-wrap gap-1 mt-1">
+                                                                {m.topics.map((t, i) => (
+                                                                    <span key={i} className="px-2 py-0.5 bg-brand-purple/20 text-brand-purple text-xs rounded">{t}</span>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* Key Points */}
+                                                {m.key_points?.length > 0 && (
+                                                    <div>
+                                                        <span className="text-brand-cyan text-xs font-medium">🔑 Key Points</span>
+                                                        <ul className="mt-1 space-y-1">
+                                                            {m.key_points.map((kp, i) => <li key={i} className="text-slate-300 text-xs">• {kp}</li>)}
+                                                        </ul>
+                                                    </div>
+                                                )}
+
+                                                {/* Action Items */}
+                                                {m.action_items?.length > 0 && (
+                                                    <div>
+                                                        <span className="text-brand-cyan text-xs font-medium">✅ Action Items</span>
+                                                        <div className="mt-1 space-y-1">
+                                                            {m.action_items.map((ai, i) => (
+                                                                <div key={i} className={`p-2 rounded ${ai.priority === 'high' ? 'bg-red-500/10' : ai.priority === 'medium' ? 'bg-amber-500/10' : 'bg-dark-700'}`}>
+                                                                    <div className="flex items-center justify-between">
+                                                                        <span className="text-slate-300 text-xs">{ai.task}</span>
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className="text-slate-500 text-xs">👤 {ai.owner}</span>
+                                                                            {ai.priority && <span className={`px-1.5 py-0.5 text-[10px] rounded ${ai.priority === 'high' ? 'bg-red-500/20 text-red-400' : ai.priority === 'medium' ? 'bg-amber-500/20 text-amber-400' : 'bg-slate-500/20 text-slate-400'}`}>{ai.priority}</span>}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Decisions */}
+                                                {m.decisions?.length > 0 && (
+                                                    <div>
+                                                        <span className="text-brand-cyan text-xs font-medium">🎯 Decisions Made</span>
+                                                        <ul className="mt-1 space-y-1">
+                                                            {m.decisions.map((d, i) => <li key={i} className="text-slate-300 text-xs">✓ {d}</li>)}
+                                                        </ul>
+                                                    </div>
+                                                )}
+
+                                                {/* Concerns & Risk Factors */}
+                                                {(m.concerns?.length > 0 || m.risk_factors?.length > 0 || m.warning_signals?.length > 0) && (
+                                                    <div className="p-2 bg-red-500/10 rounded">
+                                                        <span className="text-red-400 text-xs font-medium">⚠️ Concerns & Risks</span>
+                                                        <ul className="mt-1 space-y-0.5">
+                                                            {m.concerns?.map((c, i) => <li key={`c-${i}`} className="text-red-300 text-xs">• {c}</li>)}
+                                                            {m.risk_factors?.map((r, i) => <li key={`r-${i}`} className="text-amber-300 text-xs">• {r}</li>)}
+                                                            {m.warning_signals?.map((w, i) => <li key={`w-${i}`} className="text-amber-300 text-xs">• {w}</li>)}
+                                                        </ul>
+                                                    </div>
+                                                )}
+
+                                                {/* Positive Signals */}
+                                                {m.positive_signals?.length > 0 && (
+                                                    <div className="p-2 bg-emerald-500/10 rounded">
+                                                        <span className="text-emerald-400 text-xs font-medium">✨ Positive Signals</span>
+                                                        <ul className="mt-1 space-y-0.5">
+                                                            {m.positive_signals.map((p, i) => <li key={i} className="text-emerald-300 text-xs">• {p}</li>)}
+                                                        </ul>
+                                                    </div>
+                                                )}
+
+                                                {/* Client Requests */}
+                                                {m.client_requests?.length > 0 && (
+                                                    <div>
+                                                        <span className="text-brand-cyan text-xs font-medium">🙋 Client Requests</span>
+                                                        <ul className="mt-1 space-y-0.5">
+                                                            {m.client_requests.map((r, i) => <li key={i} className="text-slate-300 text-xs">• {r}</li>)}
+                                                        </ul>
+                                                    </div>
+                                                )}
+
+                                                {/* Next Steps */}
+                                                {m.next_steps?.length > 0 && (
+                                                    <div>
+                                                        <span className="text-brand-cyan text-xs font-medium">➡️ Next Steps</span>
+                                                        <ul className="mt-1 space-y-0.5">
+                                                            {m.next_steps.map((ns, i) => <li key={i} className="text-slate-300 text-xs">{i + 1}. {ns}</li>)}
+                                                        </ul>
+                                                    </div>
+                                                )}
+
+                                                {/* Follow-up Items */}
+                                                {m.follow_up_needed && m.follow_up_items?.length > 0 && (
+                                                    <div className="p-2 bg-brand-purple/10 rounded">
+                                                        <span className="text-brand-purple text-xs font-medium">📞 Follow-up Items</span>
+                                                        <ul className="mt-1 space-y-0.5">
+                                                            {m.follow_up_items.map((f, i) => <li key={i} className="text-slate-300 text-xs">• {f}</li>)}
+                                                        </ul>
+                                                    </div>
+                                                )}
+
+                                                {/* Full Transcript (Collapsible) */}
+                                                {m.transcript && (
+                                                    <details className="mt-2">
+                                                        <summary className="text-brand-cyan text-xs font-medium cursor-pointer hover:text-brand-purple">📜 View Full Transcript</summary>
+                                                        <div className="mt-2 p-3 bg-dark-700 rounded-lg max-h-[200px] overflow-y-auto scrollbar">
+                                                            <pre className="text-slate-400 text-xs whitespace-pre-wrap font-sans">{m.transcript}</pre>
+                                                        </div>
+                                                    </details>
+                                                )}
+
+                                                {/* Sentiment Explanation */}
+                                                {m.sentiment_explanation && (
+                                                    <div className="text-xs text-slate-500 italic">
+                                                        💭 Sentiment note: {m.sentiment_explanation}
+                                                    </div>
+                                                )}
+
+                                                {/* Delete Button */}
+                                                <div className="flex justify-end pt-2 border-t border-dark-700">
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); if (confirm('Delete this meeting record?')) deleteMeeting(m.id); }}
+                                                        className="text-xs text-slate-500 hover:text-red-400 transition-colors"
+                                                    >
+                                                        🗑️ Delete Meeting
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 ))}
                             </div>
