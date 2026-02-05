@@ -1175,18 +1175,41 @@
                 if (!situation.trim()) return;
                 setLoading(true);
                 try {
-                    const { data, error } = await supabase.functions.invoke('live-call-help', {
-                        body: {
-                            situation: situation,
-                            clientName: c?.client || 'Unknown',
-                            leads: c?.leads || 0,
-                            cpl: fmtD(c?.cpl || 0),
-                            appts: c?.appts || 0
-                        }
+                    // ADD YOUR ANTHROPIC API KEY HERE (get one from https://console.anthropic.com/settings/keys)
+                    const ANTHROPIC_API_KEY = 'YOUR_API_KEY_HERE';
+
+                    if (ANTHROPIC_API_KEY === 'YOUR_API_KEY_HERE') {
+                        throw new Error('Please add your Anthropic API key in the code');
+                    }
+
+                    const promptText = `You are a CSM (Customer Success Manager) helping on a live call with a real estate lead generation client.
+
+Client: ${c?.client || 'Unknown'}
+Leads: ${c?.leads || 0}
+CPL: ${fmtD(c?.cpl || 0)}
+Appointments: ${c?.appts || 0}
+
+The CSM needs help with this situation: "${situation}"
+
+Provide a brief, practical response that the CSM can use immediately on the call. Be direct and actionable. Keep it under 200 words.`;
+
+                    const res = await fetch('https://api.anthropic.com/v1/messages', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'x-api-key': ANTHROPIC_API_KEY,
+                            'anthropic-version': '2023-06-01',
+                            'anthropic-dangerous-direct-browser-access': 'true'
+                        },
+                        body: JSON.stringify({
+                            model: 'claude-sonnet-4-20250514',
+                            max_tokens: 500,
+                            messages: [{ role: 'user', content: promptText }]
+                        })
                     });
-                    if (error) throw new Error(error.message);
-                    if (data.error) throw new Error(data.error);
-                    setResponse(data.response || 'Could not generate response.');
+                    const data = await res.json();
+                    if (data.error) throw new Error(data.error.message);
+                    setResponse(data.content?.[0]?.text || 'Could not generate response.');
                 } catch (err) { setResponse('AI unavailable: ' + err.message + '. Try quick responses below.'); }
                 setLoading(false);
             };
@@ -1390,31 +1413,79 @@
             const processTranscript = async () => {
                 setProcessing(true);
                 try {
-                    // Call Supabase Edge Function to analyze transcript
-                    const { data, error } = await supabase.functions.invoke('analyze-transcript', {
-                        body: {
-                            transcript: transcript,
-                            clientName: c?.client || 'Unknown'
-                        }
+                    // ADD YOUR ANTHROPIC API KEY HERE (get one from https://console.anthropic.com/settings/keys)
+                    const ANTHROPIC_API_KEY = 'YOUR_API_KEY_HERE';
+
+                    if (ANTHROPIC_API_KEY === 'YOUR_API_KEY_HERE') {
+                        throw new Error('Please add your Anthropic API key in the code (search for YOUR_API_KEY_HERE)');
+                    }
+
+                    const promptContent = `Analyze this meeting transcript for client "${c?.client || 'Unknown'}".
+
+Extract ALL details and return a comprehensive JSON object with this exact structure:
+{
+    "title": "Brief meeting title (e.g., 'Weekly Check-in', 'Onboarding Call')",
+    "summary": "2-3 sentence executive summary of the meeting",
+    "duration": "Estimated duration if mentioned (e.g., '30 minutes') or 'Not specified'",
+    "participants": ["List of all people mentioned or who spoke in the meeting"],
+    "topics": ["Main topics discussed in the meeting"],
+    "clientSentiment": "positive/neutral/negative/frustrated/excited/concerned",
+    "sentimentExplanation": "Brief explanation of why this sentiment was detected",
+    "keyPoints": ["Important points discussed - be thorough, list ALL key points"],
+    "actionItems": [{"task": "Specific task", "owner": "Person responsible", "dueDate": "If mentioned, otherwise null", "priority": "high/medium/low"}],
+    "decisions": ["Any decisions made during the meeting"],
+    "concerns": ["Any concerns or issues raised by the client"],
+    "followUpNeeded": true,
+    "followUpItems": ["Specific follow-up items needed"],
+    "riskLevel": "low/medium/high",
+    "riskFactors": ["Reasons for the risk level"],
+    "importantNotes": ["Critical notes that should be flagged for attention - these will be added to the Notes History"],
+    "nextSteps": ["Agreed next steps"],
+    "clientRequests": ["Specific requests made by the client"],
+    "positiveSignals": ["Any positive indicators about the client relationship"],
+    "warningSignals": ["Any warning signs or red flags detected"]
+}
+
+Be thorough and extract as much information as possible. If something isn't mentioned, use null or empty array.
+Return ONLY the JSON object, no markdown formatting.
+
+TRANSCRIPT:
+${transcript}`;
+
+                    const res = await fetch('https://api.anthropic.com/v1/messages', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'x-api-key': ANTHROPIC_API_KEY,
+                            'anthropic-version': '2023-06-01',
+                            'anthropic-dangerous-direct-browser-access': 'true'
+                        },
+                        body: JSON.stringify({
+                            model: 'claude-sonnet-4-20250514',
+                            max_tokens: 2000,
+                            messages: [{ role: 'user', content: promptContent }]
+                        })
                     });
 
-                    if (error) {
-                        throw new Error(error.message || 'Edge function error');
-                    }
+                    const data = await res.json();
 
                     if (data.error) {
-                        throw new Error(data.error);
+                        throw new Error(data.error.message || 'API error');
                     }
 
-                    setSummary(data);
+                    const responseText = data.content?.[0]?.text || '{}';
+                    // Extract JSON from response (handle markdown code blocks)
+                    const jsonMatch = responseText.match(/```json\s*([\s\S]*?)\s*```/) || responseText.match(/```\s*([\s\S]*?)\s*```/) || [null, responseText];
+                    const parsedSummary = JSON.parse(jsonMatch[1] || responseText);
+                    setSummary(parsedSummary);
                     // Auto-set meeting title if extracted
-                    if (data.title && !meetingTitle) {
-                        setMeetingTitle(data.title);
+                    if (parsedSummary.title && !meetingTitle) {
+                        setMeetingTitle(parsedSummary.title);
                     }
                 } catch (err) {
                     console.error('AI Analysis error:', err);
                     setSummary({
-                        summary: 'Transcript saved (AI analysis failed: ' + err.message + '). Please ensure the Supabase Edge Function is deployed with ANTHROPIC_API_KEY.',
+                        summary: 'Transcript saved (AI analysis failed: ' + err.message + ')',
                         keyPoints: [],
                         actionItems: [],
                         riskLevel: 'medium',
