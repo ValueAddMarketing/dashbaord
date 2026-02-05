@@ -90,6 +90,19 @@
             return email ? email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Unknown';
         };
 
+        // API Key Management - stored in browser localStorage for security
+        const API_KEY_STORAGE_KEY = 'anthropic_api_key';
+        const getAnthropicApiKey = () => localStorage.getItem(API_KEY_STORAGE_KEY);
+        const setAnthropicApiKey = (key) => localStorage.setItem(API_KEY_STORAGE_KEY, key);
+        const promptForApiKey = () => {
+            const key = window.prompt('Enter your Anthropic API key:\n(Get one from https://console.anthropic.com/settings/keys)');
+            if (key && key.trim().startsWith('sk-ant-')) {
+                setAnthropicApiKey(key.trim());
+                return key.trim();
+            }
+            return null;
+        };
+
         // Map Client Ads Performance sheet - headers in row 2 (A2:BA2)
         const mapClient = r => {
             const sellerLeads = pn(r['Lifetime Seller Leads']);
@@ -1175,11 +1188,10 @@
                 if (!situation.trim()) return;
                 setLoading(true);
                 try {
-                    // ADD YOUR ANTHROPIC API KEY HERE (get one from https://console.anthropic.com/settings/keys)
-                    const ANTHROPIC_API_KEY = 'YOUR_API_KEY_HERE';
-
-                    if (ANTHROPIC_API_KEY === 'YOUR_API_KEY_HERE') {
-                        throw new Error('Please add your Anthropic API key in the code');
+                    let ANTHROPIC_API_KEY = getAnthropicApiKey();
+                    if (!ANTHROPIC_API_KEY) {
+                        ANTHROPIC_API_KEY = promptForApiKey();
+                        if (!ANTHROPIC_API_KEY) throw new Error('API key required');
                     }
 
                     const promptText = `You are a CSM (Customer Success Manager) helping on a live call with a real estate lead generation client.
@@ -1413,11 +1425,10 @@ Provide a brief, practical response that the CSM can use immediately on the call
             const processTranscript = async () => {
                 setProcessing(true);
                 try {
-                    // ADD YOUR ANTHROPIC API KEY HERE (get one from https://console.anthropic.com/settings/keys)
-                    const ANTHROPIC_API_KEY = 'YOUR_API_KEY_HERE';
-
-                    if (ANTHROPIC_API_KEY === 'YOUR_API_KEY_HERE') {
-                        throw new Error('Please add your Anthropic API key in the code (search for YOUR_API_KEY_HERE)');
+                    let ANTHROPIC_API_KEY = getAnthropicApiKey();
+                    if (!ANTHROPIC_API_KEY) {
+                        ANTHROPIC_API_KEY = promptForApiKey();
+                        if (!ANTHROPIC_API_KEY) throw new Error('API key required');
                     }
 
                     const promptContent = `Analyze this meeting transcript for client "${c?.client || 'Unknown'}".
