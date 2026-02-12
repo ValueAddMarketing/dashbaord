@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { supabase, getSession, onAuthStateChange, signInWithGoogle, signOut } from '../services/supabase';
+import { supabase, getSession, onAuthStateChange, signInWithGoogle, signOut, signOutLocal } from '../services/supabase';
 
 const AuthContext = createContext(null);
 
@@ -10,11 +10,20 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     // Check current session on mount
     getSession()
-      .then(({ session }) => {
+      .then(async ({ session, error }) => {
+        if (error) {
+          console.error('Auth session error:', error);
+          // Clear stale local session so Supabase stops retrying token refresh
+          await signOutLocal().catch(() => {});
+          setUser(null);
+          return;
+        }
         setUser(session?.user || null);
       })
-      .catch((err) => {
+      .catch(async (err) => {
         console.error('Auth session check failed:', err);
+        // Clear stale local session so Supabase stops retrying token refresh
+        await signOutLocal().catch(() => {});
         setUser(null);
       })
       .finally(() => {
