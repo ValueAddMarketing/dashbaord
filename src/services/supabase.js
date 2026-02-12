@@ -21,6 +21,11 @@ export const signOut = async () => {
   return { error };
 };
 
+export const signOutLocal = async () => {
+  const { error } = await supabase.auth.signOut({ scope: 'local' });
+  return { error };
+};
+
 export const getSession = async () => {
   const { data: { session }, error } = await supabase.auth.getSession();
   return { session, error };
