@@ -71,32 +71,35 @@ export const useMeetings = (clientName) => {
   };
 
   const saveMeeting = async (meetingData, addNoteCallback) => {
-    if (!meetingData.transcript?.trim() && !analysis) return null;
+    // Use analysis passed explicitly from the component to avoid stale closure
+    const currentAnalysis = meetingData.analysis || analysis;
+
+    if (!meetingData.transcript?.trim() && !currentAnalysis) return null;
 
     try {
       const fullMeetingData = {
         client_name: clientName,
         meeting_date: meetingData.date,
-        meeting_title: meetingData.title || analysis?.title || 'Meeting Notes',
+        meeting_title: meetingData.title || currentAnalysis?.title || 'Meeting Notes',
         transcript: meetingData.transcript,
-        summary: analysis?.summary || 'Manual entry',
-        duration: analysis?.duration || null,
-        participants: analysis?.participants || [],
-        topics: analysis?.topics || [],
-        client_sentiment: analysis?.clientSentiment || 'neutral',
-        sentiment_explanation: analysis?.sentimentExplanation || null,
-        key_points: analysis?.keyPoints || [],
-        action_items: analysis?.actionItems || [],
-        decisions: analysis?.decisions || [],
-        concerns: analysis?.concerns || [],
-        follow_up_needed: analysis?.followUpNeeded || false,
-        follow_up_items: analysis?.followUpItems || [],
-        risk_level: analysis?.riskLevel || 'medium',
-        risk_factors: analysis?.riskFactors || [],
-        next_steps: analysis?.nextSteps || [],
-        client_requests: analysis?.clientRequests || [],
-        positive_signals: analysis?.positiveSignals || [],
-        warning_signals: analysis?.warningSignals || [],
+        summary: currentAnalysis?.summary || 'Manual entry',
+        duration: currentAnalysis?.duration || null,
+        participants: currentAnalysis?.participants || [],
+        topics: currentAnalysis?.topics || [],
+        client_sentiment: currentAnalysis?.clientSentiment || 'neutral',
+        sentiment_explanation: currentAnalysis?.sentimentExplanation || null,
+        key_points: currentAnalysis?.keyPoints || [],
+        action_items: currentAnalysis?.actionItems || [],
+        decisions: currentAnalysis?.decisions || [],
+        concerns: currentAnalysis?.concerns || [],
+        follow_up_needed: currentAnalysis?.followUpNeeded || false,
+        follow_up_items: currentAnalysis?.followUpItems || [],
+        risk_level: currentAnalysis?.riskLevel || 'medium',
+        risk_factors: currentAnalysis?.riskFactors || [],
+        next_steps: currentAnalysis?.nextSteps || [],
+        client_requests: currentAnalysis?.clientRequests || [],
+        positive_signals: currentAnalysis?.positiveSignals || [],
+        warning_signals: currentAnalysis?.warningSignals || [],
         user_email: user?.email,
         user_id: user?.id,
         created_by_name: getDisplayName(user?.email, user)
@@ -108,10 +111,10 @@ export const useMeetings = (clientName) => {
       setMeetings(prev => [data, ...prev]);
 
       // Add important notes if callback provided
-      if (addNoteCallback && analysis) {
+      if (addNoteCallback && currentAnalysis) {
         // Add important notes
-        if (analysis.importantNotes?.length > 0) {
-          for (const note of analysis.importantNotes) {
+        if (currentAnalysis.importantNotes?.length > 0) {
+          for (const note of currentAnalysis.importantNotes) {
             await addNoteCallback(
               `📌 [From ${fullMeetingData.meeting_title} on ${meetingData.date}] ${note}`,
               'ai_extracted'
@@ -120,7 +123,7 @@ export const useMeetings = (clientName) => {
         }
 
         // Add high-priority action items
-        const highPriorityActions = (analysis.actionItems || []).filter(a => a.priority === 'high');
+        const highPriorityActions = (currentAnalysis.actionItems || []).filter(a => a.priority === 'high');
         for (const action of highPriorityActions) {
           await addNoteCallback(
             `⚠️ HIGH PRIORITY ACTION [${meetingData.date}]: ${action.task} (Owner: ${action.owner})`,
@@ -129,9 +132,9 @@ export const useMeetings = (clientName) => {
         }
 
         // Add concerns if risk is high
-        if (analysis.riskLevel === 'high' && analysis.concerns?.length > 0) {
+        if (currentAnalysis.riskLevel === 'high' && currentAnalysis.concerns?.length > 0) {
           await addNoteCallback(
-            `🚨 CLIENT CONCERNS [${meetingData.date}]: ${analysis.concerns.join('; ')}`,
+            `🚨 CLIENT CONCERNS [${meetingData.date}]: ${currentAnalysis.concerns.join('; ')}`,
             'ai_extracted'
           );
         }
@@ -141,7 +144,7 @@ export const useMeetings = (clientName) => {
         user_email: user?.email,
         client_name: clientName,
         action: 'Added meeting notes',
-        details: `${fullMeetingData.meeting_title}: ${(analysis?.summary || 'Manual entry').substring(0, 100)}`
+        details: `${fullMeetingData.meeting_title}: ${(currentAnalysis?.summary || 'Manual entry').substring(0, 100)}`
       });
 
       setAnalysis(null);

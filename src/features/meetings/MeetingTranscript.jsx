@@ -22,7 +22,7 @@ export const MeetingTranscript = ({
   };
 
   const handleSave = async () => {
-    await onSave({ date, title, transcript });
+    await onSave({ date, title, transcript, analysis });
     setTranscript('');
     setTitle('');
   };
