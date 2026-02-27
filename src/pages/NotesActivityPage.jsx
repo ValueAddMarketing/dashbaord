@@ -1,13 +1,13 @@
 import { Card } from '../components';
 import { QuickNotes, NotesHistory } from '../features/notes';
-import { MeetingTranscript, MeetingHistory } from '../features/meetings';
-import { useNotes, useMeetings, useActivities } from '../hooks';
+import { MeetingTranscript, MeetingHistory, FathomSyncStatus, FathomSettings } from '../features/meetings';
+import { useNotes, useMeetings, useActivities, useFathomSync } from '../hooks';
 import { getDisplayName } from '../utils/formatters';
 
 /**
  * Combined Notes, Meetings & Activity page
  */
-export const NotesActivityPage = ({ client }) => {
+export const NotesActivityPage = ({ client, clients }) => {
   const clientName = client?.client;
 
   const {
@@ -27,10 +27,25 @@ export const NotesActivityPage = ({ client }) => {
     processTranscript,
     saveMeeting,
     removeMeeting,
-    clearError: clearMeetingError
+    clearError: clearMeetingError,
+    refreshMeetings
   } = useMeetings(clientName);
 
   const { activities } = useActivities(clientName);
+
+  const {
+    syncLog,
+    domainMappings,
+    syncing,
+    stats,
+    lastSyncResult,
+    error: fathomError,
+    runSync,
+    addMapping,
+    removeMapping,
+    loadingMappings,
+    clearError: clearFathomError,
+  } = useFathomSync();
 
   if (!client) {
     return (
@@ -48,8 +63,38 @@ export const NotesActivityPage = ({ client }) => {
     return result;
   };
 
+  const handleFathomSync = async (createdAfter) => {
+    const result = await runSync(createdAfter);
+    if (result) {
+      // Refresh meetings and notes after sync to pick up new imports
+      refreshMeetings();
+      refreshNotes();
+    }
+    return result;
+  };
+
   return (
     <div className="space-y-6">
+      {/* Fathom Auto-Sync */}
+      <FathomSyncStatus
+        syncLog={syncLog}
+        stats={stats}
+        syncing={syncing}
+        lastSyncResult={lastSyncResult}
+        error={fathomError}
+        onSync={handleFathomSync}
+        onClearError={clearFathomError}
+      />
+
+      {/* Fathom Settings (collapsible) */}
+      <FathomSettings
+        domainMappings={domainMappings}
+        onAddMapping={addMapping}
+        onRemoveMapping={removeMapping}
+        loading={loadingMappings}
+        clients={clients}
+      />
+
       {/* Quick Notes */}
       <QuickNotes onAddNote={(text) => addNote(text)} />
 
@@ -79,7 +124,7 @@ export const NotesActivityPage = ({ client }) => {
 
       {/* Activity Log */}
       <Card>
-        <h3 className="text-lg font-semibold text-white mb-4">📋 Activity Log</h3>
+        <h3 className="text-lg font-semibold text-white mb-4">Activity Log</h3>
         {activities.length === 0 ? (
           <div className="text-slate-500 text-center py-4">No activity yet</div>
         ) : (

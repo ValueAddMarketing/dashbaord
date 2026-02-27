@@ -76,6 +76,8 @@ const MeetingDetails = ({ meeting, onDelete }) => {
   const warningSignals = pick(m.warning_signals, extra.warningSignals);
   const positiveSignals = pick(m.positive_signals, extra.positiveSignals);
   const sentimentExplanation = m.sentiment_explanation || extra.sentimentExplanation;
+  const fathomUrl = extra.fathomUrl;
+  const source = m.source || 'manual';
 
   return (
     <div className="p-4 pt-0 border-t border-dark-700 space-y-4">
@@ -216,8 +218,26 @@ const MeetingDetails = ({ meeting, onDelete }) => {
         </div>
       )}
 
-      {/* Delete Button */}
-      <div className="flex justify-end pt-2 border-t border-dark-700">
+      {/* Source & Actions */}
+      <div className="flex items-center justify-between pt-2 border-t border-dark-700">
+        <div className="flex items-center gap-2">
+          {source !== 'manual' && (
+            <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-brand-cyan/20 text-brand-cyan">
+              {source === 'fathom_webhook' ? 'Fathom (live)' : 'Fathom (sync)'}
+            </span>
+          )}
+          {fathomUrl && (
+            <a
+              href={fathomUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-brand-cyan hover:text-brand-purple transition-colors"
+              onClick={e => e.stopPropagation()}
+            >
+              View in Fathom
+            </a>
+          )}
+        </div>
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -225,7 +245,7 @@ const MeetingDetails = ({ meeting, onDelete }) => {
           }}
           className="text-xs text-slate-500 hover:text-red-400 transition-colors"
         >
-          🗑️ Delete Meeting
+          Delete Meeting
         </button>
       </div>
     </div>
@@ -269,6 +289,7 @@ export const MeetingHistory = ({ meetings, onDelete }) => {
             const duration = m.duration || extra.duration;
             const followUpNeeded = m.follow_up_needed || extra.followUpNeeded || false;
             const createdByName = m.created_by_name || extra.createdByName;
+            const meetingSource = m.source || 'manual';
 
             return (
             <div
@@ -303,7 +324,12 @@ export const MeetingHistory = ({ meetings, onDelete }) => {
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-4 mt-2 text-xs text-slate-500">
-                  <span>📝 Added by: <span className="text-brand-purple">{safe(createdByName || getDisplayName(m.user_email))}</span></span>
+                  {meetingSource !== 'manual' && (
+                    <span className="px-1.5 py-0.5 rounded bg-brand-cyan/20 text-brand-cyan text-[10px] font-medium">
+                      Fathom
+                    </span>
+                  )}
+                  <span>📝 {safe(createdByName || getDisplayName(m.user_email))}</span>
                   {duration && <span>⏱️ {safe(duration)}</span>}
                   {participants.length > 0 && <span>👥 {participants.length} participants</span>}
                   {actionItems.length > 0 && <span>✅ {actionItems.length} action items</span>}

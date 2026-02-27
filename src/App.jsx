@@ -116,6 +116,7 @@ const AppLayout = () => {
               element={
                 <NotesActivityPage
                   client={selectedClient}
+                  clients={clients}
                 />
               }
             />

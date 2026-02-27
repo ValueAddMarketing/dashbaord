@@ -182,3 +182,57 @@ export const getLiveCallHelp = async (situation, clientInfo) => {
   });
   return { data, error };
 };
+
+// ============ FATHOM INTEGRATION FUNCTIONS ============
+
+export const triggerFathomSync = async (createdAfter) => {
+  const { data, error } = await supabase.functions.invoke('ingest-fathom', {
+    body: createdAfter ? { created_after: createdAfter } : {}
+  });
+  return { data, error };
+};
+
+export const getFathomSyncLog = async (limit = 20) => {
+  const { data, error } = await supabase
+    .from('fathom_sync_log')
+    .select('*')
+    .order('synced_at', { ascending: false })
+    .limit(limit);
+  return { data, error };
+};
+
+export const getEmailDomainMappings = async () => {
+  const { data, error } = await supabase
+    .from('client_email_domains')
+    .select('*')
+    .order('client_name', { ascending: true });
+  return { data, error };
+};
+
+export const addEmailDomainMapping = async (domain, clientName, createdBy) => {
+  const { data, error } = await supabase
+    .from('client_email_domains')
+    .insert({ domain, client_name: clientName, created_by: createdBy })
+    .select()
+    .single();
+  return { data, error };
+};
+
+export const deleteEmailDomainMapping = async (id) => {
+  const { error } = await supabase
+    .from('client_email_domains')
+    .delete()
+    .eq('id', id);
+  return { error };
+};
+
+export const retryFathomSync = async (recordingId) => {
+  // Delete the failed sync log entry so ingest-fathom will reprocess it
+  await supabase
+    .from('fathom_sync_log')
+    .delete()
+    .eq('fathom_recording_id', recordingId);
+
+  // Trigger a new sync
+  return triggerFathomSync();
+};
