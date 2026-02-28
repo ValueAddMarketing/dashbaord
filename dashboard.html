@@ -675,7 +675,7 @@
         };
 
         // ========== META AD SETTINGS TAB ==========
-        const MetaAdSettingsTab = ({ clients }) => {
+        const MetaAdSettingsTab = ({ clients, viewMode = 'performance' }) => {
             const [adAccounts, setAdAccounts] = useState([]);
             const [mappings, setMappings] = useState([]);
             const [metaData, setMetaData] = useState({});
@@ -685,7 +685,6 @@
             const [searchFilter, setSearchFilter] = useState('');
             const [statusMessage, setStatusMessage] = useState(null);
             const [datePreset, setDatePreset] = useState('last_7d');
-            const [viewMode, setViewMode] = useState('performance');
 
             useEffect(() => {
                 const load = async () => {
@@ -745,19 +744,6 @@
 
             return (
                 <div className="space-y-6">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h2 className="text-2xl font-bold text-primary">Meta Ads Dashboard</h2>
-                            <p className="text-sm text-secondary mt-1">Real-time ad performance from Meta Marketing API</p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <div className="flex rounded-lg overflow-hidden border divider">
-                                <button onClick={() => setViewMode('performance')} className={'px-4 py-2 text-sm font-medium ' + (viewMode === 'performance' ? 'bg-brand-cyan/20 text-brand-cyan' : 'text-secondary hover-bg')}>Performance</button>
-                                <button onClick={() => setViewMode('mappings')} className={'px-4 py-2 text-sm font-medium ' + (viewMode === 'mappings' ? 'bg-brand-cyan/20 text-brand-cyan' : 'text-secondary hover-bg')}>Account Mappings</button>
-                            </div>
-                        </div>
-                    </div>
-
                     {statusMessage && (
                         <div className={'p-3 rounded-lg text-sm ' + (statusMessage.type === 'success' ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400' : 'bg-red-500/20 border border-red-500/30 text-red-400')}>
                             {statusMessage.text}
@@ -1059,8 +1045,12 @@
                                         <div><div className="text-sm font-medium">All Clients</div><div className="text-xs text-muted">Overview of all client metrics</div></div>
                                     </button>
                                     <button onClick={() => setTab('meta-ads')} className={'w-full flex items-start gap-3 px-5 py-3 text-left ' + (tab === 'meta-ads' ? 'tab-active text-primary' : 'text-secondary hover-bg')}>
-                                        <span className="text-lg">⚙️</span>
-                                        <div><div className="text-sm font-medium">Meta Ads</div><div className="text-xs text-muted">Real-time ad performance & mappings</div></div>
+                                        <span className="text-lg">📈</span>
+                                        <div><div className="text-sm font-medium">Meta Ads</div><div className="text-xs text-muted">Real-time ad performance</div></div>
+                                    </button>
+                                    <button onClick={() => setTab('mappings')} className={'w-full flex items-start gap-3 px-5 py-3 text-left ' + (tab === 'mappings' ? 'tab-active text-primary' : 'text-secondary hover-bg')}>
+                                        <span className="text-lg">🔗</span>
+                                        <div><div className="text-sm font-medium">Account Mappings</div><div className="text-xs text-muted">Link clients to Meta ad accounts</div></div>
                                     </button>
                                     <div className="px-4 pt-4 pb-2">
                                         <button onClick={() => supabase.auth.signOut()} className="w-full py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg text-sm">Logout</button>
@@ -1070,8 +1060,8 @@
                             <main className="flex-1 flex flex-col">
                                 <header className="header-bar backdrop-blur border-b px-8 py-4 flex items-center justify-between divider">
                                     <div>
-                                        <h2 className="text-xl font-bold text-primary">{tab === 'clients' ? 'Media Buyer Overview' : '⚙️ Meta Ads Dashboard'}</h2>
-                                        <p className="text-secondary text-sm">{tab === 'clients' ? 'All clients at a glance' : 'Real-time ad performance from Meta Marketing API'}</p>
+                                        <h2 className="text-xl font-bold text-primary">{tab === 'clients' ? 'Media Buyer Overview' : tab === 'meta-ads' ? '📈 Meta Ads Performance' : '🔗 Account Mappings'}</h2>
+                                        <p className="text-secondary text-sm">{tab === 'clients' ? 'All clients at a glance' : tab === 'meta-ads' ? 'Real-time ad performance from Meta Marketing API' : 'Link clients to their Meta ad accounts'}</p>
                                     </div>
                                     <button
                                         onClick={toggleTheme}
@@ -1081,11 +1071,9 @@
                                     </button>
                                 </header>
                                 <div className="flex-1 overflow-y-auto p-8 scrollbar">
-                                    {tab === 'clients' ? (
-                                        <AllClientsView clients={clients} setupData={setupData} onClientClick={handleClientClick} />
-                                    ) : (
-                                        <MetaAdSettingsTab clients={clients} />
-                                    )}
+                                    {tab === 'clients' && <AllClientsView clients={clients} setupData={setupData} onClientClick={handleClientClick} />}
+                                    {tab === 'meta-ads' && <MetaAdSettingsTab clients={clients} viewMode="performance" />}
+                                    {tab === 'mappings' && <MetaAdSettingsTab clients={clients} viewMode="mappings" />}
                                 </div>
                             </main>
                         </div>
