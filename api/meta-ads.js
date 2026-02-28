@@ -28,7 +28,7 @@ export default async function handler(req, res) {
 
   try {
     if (action === 'listAdAccounts') {
-      const url = `https://graph.facebook.com/v19.0/me/adaccounts?fields=id,name,business_name&access_token=${META_ACCESS_TOKEN}&limit=100`;
+      const url = `https://graph.facebook.com/v21.0/me/adaccounts?fields=id,name,business_name&access_token=${META_ACCESS_TOKEN}&limit=100`;
       const response = await fetch(url);
       const data = await response.json();
 
@@ -41,7 +41,7 @@ export default async function handler(req, res) {
 
     if (action === 'fetchAll') {
       if (!SUPABASE_URL || !SUPABASE_KEY) {
-        return res.status(500).json({ error: 'Supabase not configured' });
+        return res.status(500).json({ error: 'Supabase not configured', detail: { SUPABASE_URL: !!SUPABASE_URL, SUPABASE_SERVICE_KEY: !!SUPABASE_KEY } });
       }
 
       // Get mappings from Supabase
@@ -54,7 +54,7 @@ export default async function handler(req, res) {
       const mappings = await mappingsRes.json();
 
       if (!Array.isArray(mappings)) {
-        return res.json({ results: {} });
+        return res.json({ results: {}, debug: { mappingsError: mappings, mappingsCount: 0 } });
       }
 
       // Fetch expanded insights for each mapped account
@@ -65,13 +65,19 @@ export default async function handler(req, res) {
       ].join(',');
 
       const results = {};
+      const errors = {};
       for (const mapping of mappings) {
         const accountId = mapping.meta_ad_account_id;
-        const url = `https://graph.facebook.com/v19.0/act_${accountId}/insights?fields=${insightFields}&date_preset=${selectedPreset}&access_token=${META_ACCESS_TOKEN}`;
+        const url = `https://graph.facebook.com/v21.0/act_${accountId}/insights?fields=${insightFields}&date_preset=${selectedPreset}&access_token=${META_ACCESS_TOKEN}`;
 
         try {
           const insightRes = await fetch(url);
           const insightData = await insightRes.json();
+
+          if (insightData.error) {
+            errors[mapping.client_name] = insightData.error.message;
+            continue;
+          }
 
           if (insightData.data && insightData.data[0]) {
             const insight = insightData.data[0];
@@ -109,13 +115,23 @@ export default async function handler(req, res) {
               cpl: leads > 0 ? (spend / leads).toFixed(2) : costPerLead > 0 ? costPerLead.toFixed(2) : null,
               datePreset: selectedPreset
             };
+          } else {
+            errors[mapping.client_name] = 'No insights data returned (account may have no activity in this date range)';
           }
         } catch (err) {
-          console.error(`Error fetching insights for ${mapping.client_name}:`, err);
+          errors[mapping.client_name] = err.message;
         }
       }
 
-      return res.json({ results, datePreset: selectedPreset });
+      return res.json({
+        results,
+        datePreset: selectedPreset,
+        debug: {
+          mappingsCount: mappings.length,
+          mappings: mappings.map(m => ({ client: m.client_name, accountId: m.meta_ad_account_id })),
+          errors: Object.keys(errors).length > 0 ? errors : undefined
+        }
+      });
     }
 
     return res.status(400).json({ error: 'Invalid action. Use "listAdAccounts" or "fetchAll".' });
