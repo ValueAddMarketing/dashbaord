@@ -118,11 +118,13 @@ serve(async (req) => {
     }
 
     const fathomData = await fathomResponse.json()
+    console.log('Fathom API response keys:', Object.keys(fathomData))
+    console.log('Fathom API response (first 500 chars):', JSON.stringify(fathomData).substring(0, 500))
     const recordings: FathomRecording[] = fathomData.meetings || fathomData.recordings || fathomData.data || fathomData || []
 
     if (!Array.isArray(recordings) || recordings.length === 0) {
       return new Response(
-        JSON.stringify({ message: 'No new meetings found', checked_after: createdAfter }),
+        JSON.stringify({ message: 'No new meetings found', checked_after: createdAfter, debug_keys: Object.keys(fathomData), debug_type: typeof fathomData, debug_is_array: Array.isArray(fathomData), debug_sample: JSON.stringify(fathomData).substring(0, 300) }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
